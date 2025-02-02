@@ -1,6 +1,12 @@
 "use client";
 import Link from "next/link";
-import { Gauge, ScrollText, Landmark, LogOut, Users } from "lucide-react";
+import {
+  Gauge,
+  ScrollText,
+  BadgeDollarSign,
+  LogOut,
+  Users,
+} from "lucide-react";
 import { usePathname } from "next/navigation";
 
 import {
@@ -34,9 +40,9 @@ const sidbarTopItems = [
   },
 
   {
-    title: "Connect Bank",
-    url: "/connect-bank",
-    icon: Landmark,
+    title: "Transactions",
+    url: "/transactions",
+    icon: BadgeDollarSign,
   },
 ];
 

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import {
   Dialog,
@@ -22,9 +22,14 @@ import { Loader } from "@/components/loader";
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onBankConnected?: (data: { userGuid: string; memberGuid: string }) => void;
 }
 
-export function ConnectBankDialog({ open, onOpenChange }: Readonly<Props>) {
+export function ConnectBankDialog({
+  open,
+  onOpenChange,
+  onBankConnected,
+}: Readonly<Props>) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
 
   const connectBankMutation = useMutation({
@@ -40,11 +45,54 @@ export function ConnectBankDialog({ open, onOpenChange }: Readonly<Props>) {
     },
   });
 
+  const handleMXEvent = useCallback(
+    (event: MessageEvent) => {
+      if (!event.data || event.data.mx !== true) return;
+
+      console.log("MX Event:", event.data);
+
+      switch (event.data.type) {
+        case "mx/connect/memberConnected":
+          toast.success("Bank connected successfully!");
+          onBankConnected?.({
+            userGuid: event.data.metadata.user_guid,
+            memberGuid: event.data.metadata.member_guid,
+          });
+
+          onOpenChange(false);
+          break;
+
+        case "mx/connect/loaded":
+          console.log("MX Widget loaded");
+          break;
+
+        case "mx/connect/connectionFailed":
+          toast.error("Failed to connect to bank. Please try again.");
+          break;
+
+        case "mx/connect/memberDeleted":
+          toast.info("Bank connection removed");
+          break;
+      }
+    },
+    [onBankConnected, onOpenChange]
+  );
+
   useEffect(() => {
     if (open) {
       connectBankMutation.mutate();
     }
   }, [open]);
+
+  useEffect(() => {
+    // Add event listener when dialog opens
+    window.addEventListener("message", handleMXEvent);
+
+    // Cleanup listener when dialog closes
+    return () => {
+      window.removeEventListener("message", handleMXEvent);
+    };
+  }, [handleMXEvent]);
 
   const Content = connectBankMutation.isPending ? (
     <div className="flex flex-col items-center justify-center h-[600px] space-y-4">

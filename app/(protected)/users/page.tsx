@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -10,21 +11,27 @@ import {
 } from "@/components/ui/table";
 import { axiosInstance } from "@/app/config/axios";
 import { Loader } from "@/components/loader";
-import { format, parseISO } from "date-fns";
-import { useState, useEffect } from "react";
+import dayjs from "dayjs";
 
 interface MxUser {
-  _id: string;
-  userId: string;
-  mxGuid: string;
+  id: string;
+  mxUserId: string;
+  memberId?: string;
+  email: string;
+  isDisabled: boolean;
+  metadata?: Record<string, any>;
   createdAt: string;
-  user: {
-    fullName: string;
-    email: string;
-  };
 }
 
 const Users = () => {
+  const { data: mxUsers, isLoading } = useQuery({
+    queryKey: ["mx-users"],
+    queryFn: async () => {
+      const response = await axiosInstance.get("/mx-user");
+      return response.data.data.mxUsers;
+    },
+  });
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div>
@@ -34,45 +41,47 @@ const Users = () => {
         </p>
       </div>
 
-      {/* <div className="rounded-md border">
+      {isLoading ? (
+        <div className="flex justify-center items-center h-48">
+          <Loader size={30} isLoading={true} />
+        </div>
+      ) : (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
               <TableHead>MX GUID</TableHead>
               <TableHead>Created At</TableHead>
+              <TableHead>Member ID</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Is Disabled</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {mxUsers?.length === 0 ? (
+            {mxUsers &&
+              mxUsers?.map((user: MxUser) => (
+                <TableRow key={user.id}>
+                  <TableCell>{user.mxUserId}</TableCell>
+                  <TableCell>
+                    {dayjs(user.createdAt).format("MMM D, YYYY h:mm A")}
+                  </TableCell>
+                  <TableCell>{user.memberId}</TableCell>
+                  <TableCell>{user.email}</TableCell>
+                  <TableCell>{user.isDisabled ? "Yes" : "No"}</TableCell>
+                </TableRow>
+              ))}
+            {mxUsers?.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={4}
-                  className="h-24 text-center text-muted-foreground"
+                  colSpan={2}
+                  className="text-center text-muted-foreground"
                 >
-                  No MX users found
+                  No MX users found. Try connecting a bank account first.
                 </TableCell>
               </TableRow>
-            ) : (
-              mxUsers?.map((user) => (
-                <TableRow key={user._id}>
-                  <TableCell className="font-medium">
-                    {user.user.fullName}
-                  </TableCell>
-                  <TableCell>{user.user.email}</TableCell>
-                  <TableCell>
-                    <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm">
-                      {user.mxGuid}
-                    </code>
-                  </TableCell>
-                  <TableCell>{formatDate(user.createdAt)}</TableCell>
-                </TableRow>
-              ))
             )}
           </TableBody>
         </Table>
-      </div> */}
+      )}
     </div>
   );
 };
