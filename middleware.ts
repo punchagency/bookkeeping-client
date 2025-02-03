@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// Add paths that should be protected (require no auth)
 const publicPaths = ["/auth/login", "/auth/signup", "/"];
 
 export function middleware(request: NextRequest) {
-  const token = request.cookies.get("refreshToken")?.value || "";
+  const token = request.cookies.get("next_refresh_token")?.value || "";
   const { pathname } = request.nextUrl;
+
+  console.log("Middleware Token:", token);
 
   if (token && publicPaths.includes(pathname)) {
     return NextResponse.redirect(new URL("/dashboard", request.url));

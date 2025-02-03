@@ -29,6 +29,7 @@ interface LoginResponse {
     fullName: string;
     avatar: string;
   };
+  refreshToken: string;
 }
 
 const Login = () => {
@@ -48,8 +49,15 @@ const Login = () => {
         }
       );
 
-      localStorage.setItem("accessToken", response.data.data!.accessToken);
+      await fetch("/api/auth/set-token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token: response.data.data.refreshToken }),
+      });
 
+      localStorage.setItem("accessToken", response.data.data.accessToken);
       return response.data;
     },
     onSuccess: () => {

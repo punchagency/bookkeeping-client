@@ -16,6 +16,7 @@ const Logout = () => {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
+      // First call the backend logout endpoint
       const response = await axiosInstance.post(
         "/auth/logout",
         {},
@@ -23,6 +24,15 @@ const Logout = () => {
           withCredentials: true,
         }
       );
+
+      // Then remove the refresh token via our Next.js API route
+      await fetch("/api/auth/reset-token", {
+        method: "POST",
+      });
+
+      // Clear local storage
+      localStorage.removeItem("accessToken");
+
       return response.data;
     },
     onSuccess: () => {
