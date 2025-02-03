@@ -51,9 +51,7 @@ const Users = () => {
             <TableRow>
               <TableHead>MX GUID</TableHead>
               <TableHead>Created At</TableHead>
-              <TableHead>Member ID</TableHead>
               <TableHead>Email</TableHead>
-              <TableHead>Is Disabled</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -66,7 +64,6 @@ const Users = () => {
                   </TableCell>
                   <TableCell>{user.memberId}</TableCell>
                   <TableCell>{user.email}</TableCell>
-                  <TableCell>{user.isDisabled ? "Yes" : "No"}</TableCell>
                 </TableRow>
               ))}
             {mxUsers?.length === 0 && (

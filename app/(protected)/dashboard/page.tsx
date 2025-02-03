@@ -3,7 +3,7 @@
 "use client";
 import dayjs from "dayjs";
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { ConnectBankDialog } from "./components/connect-bank-dialog";
 import {
@@ -12,6 +12,7 @@ import {
   RefreshCcw,
   CheckCircle2,
   XCircle,
+  Unlink,
 } from "lucide-react";
 import { axiosInstance } from "@/app/config/axios";
 import {
@@ -23,6 +24,18 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader } from "@/components/loader";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 
 interface ConnectedBank {
   guid: string;
@@ -44,13 +57,25 @@ const Dashboard = () => {
     },
   });
 
-  const handleBankConnected = ({
-    userGuid,
-    memberGuid,
-  }: {
-    userGuid: string;
-    memberGuid: string;
-  }) => {
+  const disconnectBankMutation = useMutation({
+    mutationFn: async (memberGuid: string) => {
+      await axiosInstance.delete(`/bank/disconnect/`, {
+        data: {
+          memberGuid,
+        },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bank-current"] });
+      toast.success("Bank disconnected successfully");
+    },
+    onError: (error) => {
+      toast.error("Failed to disconnect bank");
+      console.error("Error disconnecting bank:", error);
+    },
+  });
+
+  const handleBankConnected = () => {
     queryClient.invalidateQueries({ queryKey: ["bank-current"] });
   };
 
@@ -107,16 +132,52 @@ const Dashboard = () => {
                         Institution Code: {bank.institutionCode}
                       </CardDescription>
                     </div>
-                    <Badge className={getStatusColor(bank.connectionStatus)}>
-                      {bank.connectionStatus === "CONNECTED" ? (
-                        <CheckCircle2 className="mr-1 h-3 w-3" />
-                      ) : bank.connectionStatus === "PENDING" ? (
-                        <RefreshCcw className="mr-1 h-3 w-3 animate-spin" />
-                      ) : (
-                        <XCircle className="mr-1 h-3 w-3" />
-                      )}
-                      {bank.connectionStatus}
-                    </Badge>
+                    <div className="flex items-center gap-3">
+                      <Badge className={getStatusColor(bank.connectionStatus)}>
+                        {bank.connectionStatus === "CONNECTED" ? (
+                          <CheckCircle2 className="mr-1 h-3 w-3" />
+                        ) : bank.connectionStatus === "PENDING" ? (
+                          <RefreshCcw className="mr-1 h-3 w-3 animate-spin" />
+                        ) : (
+                          <XCircle className="mr-1 h-3 w-3" />
+                        )}
+                        {bank.connectionStatus}
+                      </Badge>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="font-medium"
+                          >
+                            <Unlink className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>
+                              Disconnect {bank.name}?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will disconnect your bank account and stop
+                              syncing transactions. You can always reconnect it
+                              later.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() =>
+                                disconnectBankMutation.mutate(bank.guid)
+                              }
+                              className="bg-destructive hover:bg-destructive/90"
+                            >
+                              Disconnect
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
