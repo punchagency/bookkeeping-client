@@ -4,11 +4,11 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:2800/v1";
 
 export const axiosInstance = axios.create({
-  baseURL: BASE_URL,
+  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  withCredentials: true,
   headers: {
     "Content-Type": "application/json",
   },
-  withCredentials: true,
 });
 
 let isRefreshing = false;
@@ -48,48 +48,10 @@ axiosInstance.interceptors.request.use(
 axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config as InternalAxiosRequestConfig & {
-      _retry?: boolean;
-    };
-
-    if (error.response?.status !== 401 || originalRequest._retry) {
-      return Promise.reject(error);
+    if (error.response?.status === 401) {
+      // Handle token refresh here
     }
-
-    if (isRefreshing) {
-      return new Promise((resolve, reject) => {
-        failedQueue.push({ resolve, reject });
-      })
-        .then(() => axiosInstance(originalRequest))
-        .catch((err) => Promise.reject(err));
-    }
-
-    originalRequest._retry = true;
-    isRefreshing = true;
-
-    try {
-      const { data } = await axiosInstance.post(
-        "/auth/refresh-token",
-        {},
-        { withCredentials: true }
-      );
-      localStorage.setItem("accessToken", data.accessToken);
-      setAuthHeader(data.accessToken);
-
-      processQueue(null);
-      return axiosInstance(originalRequest);
-    } catch (refreshError) {
-      processQueue(refreshError as AxiosError);
-      localStorage.removeItem("accessToken");
-      setAuthHeader(null);
-
-      if (typeof window !== "undefined") {
-        window.location.href = "/auth/login";
-      }
-      return Promise.reject(refreshError);
-    } finally {
-      isRefreshing = false;
-    }
+    return Promise.reject(error);
   }
 );
 

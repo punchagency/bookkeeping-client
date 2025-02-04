@@ -63,7 +63,7 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel className="text-md font-bold">
-            Mx Project Demo
+            Bookkeeping Demo
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>

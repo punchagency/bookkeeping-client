@@ -38,79 +38,105 @@ import {
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { DateRange } from "react-day-picker";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 interface Transaction {
-  guid: string;
-  description: string;
-  amount: number;
-  currency_code: string;
   category: string;
-  top_level_category: string;
-  type: "CREDIT" | "DEBIT";
-  transacted_at: string;
+  date: string;
   status: string;
-  is_expense: boolean;
-  is_income: boolean;
+  topLevelCategory: string;
+  type: string;
+  accountId: string;
+  userId: string;
+  accountGuid: string;
+  amount: number;
+  currencyCode: string;
+  description: string;
+  guid: string;
+  transactionId: string;
+  isExpense: boolean;
+  isIncome: boolean;
+  memo: string | null;
+  originalDescription: string;
+  memberGuid: string;
+  userGuid: string;
+  metadata: {
+    merchantCategoryCode: string | null;
+    merchantGuid: string | null;
+    classification: string | null;
+    extendedTransactionType: string | null;
+  };
+  isDeleted: boolean;
+}
+
+interface TransactionResponse {
+  code: number;
+  status: string;
+  success: boolean;
+  message: string;
+  data: {
+    transactions: Transaction[];
+    pagination: {
+      currentPage: number;
+      perPage: number;
+      totalEntries: number;
+      totalPages: number;
+    };
+  };
 }
 
 const Transactions = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [dateRange, setDateRange] = useState<DateRange>({
     from: addDays(new Date(), -30),
     to: new Date(),
   });
 
-  const { data: transactions, isLoading } = useQuery({
-    queryKey: ["transactions"],
+  const { data, isLoading } = useQuery({
+    queryKey: ["transactions", currentPage],
     queryFn: async () => {
-      const response = await axiosInstance.get("/bank/transactions");
-      return response.data.data as Transaction[];
+      const response = await axiosInstance.get("/bank/transactions", {
+        params: {
+          currentPage,
+          perPage: 25,
+        },
+      });
+      return response.data as TransactionResponse;
     },
   });
 
+  const transactions = data?.data.transactions;
+  const pagination = data?.data.pagination;
+
   const categories = useMemo(() => {
     return [
-      ...new Set(transactions?.map((t) => t.top_level_category) || []),
+      ...new Set(transactions?.map((t) => t.topLevelCategory) || []),
     ].sort();
   }, [transactions]);
 
-  const filteredTransactions = useMemo(() => {
-    return transactions?.filter((transaction) => {
-      const matchesSearch = transaction.description
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase());
-
-      const matchesCategory =
-        !selectedCategory ||
-        transaction.top_level_category === selectedCategory;
-
-      const transactionDate = new Date(transaction.transacted_at);
-      const matchesDateRange =
-        dateRange.from && dateRange.to
-          ? isWithinInterval(transactionDate, {
-              start: dateRange.from,
-              end: dateRange.to,
-            })
-          : true;
-
-      return matchesSearch && matchesCategory && matchesDateRange;
-    });
-  }, [transactions, searchTerm, selectedCategory, dateRange]);
-
   const totals = useMemo(() => {
-    if (!filteredTransactions) return { income: 0, expenses: 0, net: 0 };
+    if (!transactions) return { income: 0, expenses: 0, net: 0 };
 
-    return filteredTransactions.reduce(
+    return transactions.reduce(
       (acc, t) => {
-        if (t.is_income) acc.income += t.amount;
-        if (t.is_expense) acc.expenses += t.amount;
-        acc.net += t.is_income ? t.amount : -t.amount;
+        if (t.isIncome) acc.income += t.amount;
+        if (t.isExpense) acc.expenses += t.amount;
+        acc.net += t.isIncome ? t.amount : -t.amount;
         return acc;
       },
       { income: 0, expenses: 0, net: 0 }
     );
-  }, [filteredTransactions]);
+  }, [transactions]);
 
   const getTransactionIcon = (
     type: string,
@@ -204,8 +230,8 @@ const Transactions = () => {
                   <div>
                     <CardTitle>Transactions</CardTitle>
                     <CardDescription>
-                      Showing {filteredTransactions?.length} of{" "}
-                      {transactions?.length} transactions
+                      Showing {transactions?.length} of {transactions?.length}{" "}
+                      transactions
                     </CardDescription>
                   </div>
                 </div>
@@ -257,7 +283,7 @@ const Transactions = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredTransactions?.map((transaction) => (
+                  {transactions?.map((transaction) => (
                     <TableRow
                       key={transaction.guid}
                       className="group hover:bg-muted/50"
@@ -266,43 +292,41 @@ const Transactions = () => {
                         <div className="flex items-center gap-2">
                           {getTransactionIcon(
                             transaction.type,
-                            transaction.is_expense,
-                            transaction.is_income
+                            transaction.isExpense,
+                            transaction.isIncome
                           )}
-                          {dayjs(transaction.transacted_at).format(
-                            "MMM D, YYYY"
-                          )}
+                          {dayjs(transaction.date).format("MMM D, YYYY")}
                         </div>
                       </TableCell>
                       <TableCell>{transaction.description}</TableCell>
                       <TableCell>
                         <Badge
                           className={getCategoryColor(
-                            transaction.top_level_category
+                            transaction.topLevelCategory
                           )}
                         >
-                          {transaction.top_level_category}
+                          {transaction.topLevelCategory}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         <span
                           className={
-                            transaction.is_income
+                            transaction.isIncome
                               ? "text-green-600"
-                              : transaction.is_expense
+                              : transaction.isExpense
                               ? "text-red-600"
                               : "text-yellow-600"
                           }
                         >
                           {formatAmount(
                             transaction.amount,
-                            transaction.currency_code
+                            transaction.currencyCode
                           )}
                         </span>
                       </TableCell>
                     </TableRow>
                   ))}
-                  {filteredTransactions?.length === 0 && (
+                  {transactions?.length === 0 && (
                     <TableRow>
                       <TableCell
                         colSpan={4}
@@ -314,6 +338,93 @@ const Transactions = () => {
                   )}
                 </TableBody>
               </Table>
+              <div className="p-4 border-t">
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        href="#"
+                        onClick={() =>
+                          setCurrentPage((p) => Math.max(1, p - 1))
+                        }
+                        aria-disabled={currentPage === 1}
+                      />
+                    </PaginationItem>
+
+                    {/* First page */}
+                    <PaginationItem>
+                      <PaginationLink
+                        href="#"
+                        onClick={() => setCurrentPage(1)}
+                        isActive={currentPage === 1}
+                      >
+                        1
+                      </PaginationLink>
+                    </PaginationItem>
+
+                    {/* Show ellipsis if needed */}
+                    {currentPage > 3 && (
+                      <PaginationItem>
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    )}
+
+                    {/* Current page and surrounding pages */}
+                    {Array.from({ length: 3 }, (_, i) => currentPage + i - 1)
+                      .filter(
+                        (page) =>
+                          page > 1 && page < (pagination?.totalPages || 1)
+                      )
+                      .map((page) => (
+                        <PaginationItem key={page}>
+                          <PaginationLink
+                            href="#"
+                            onClick={() => setCurrentPage(page)}
+                            isActive={currentPage === page}
+                          >
+                            {page}
+                          </PaginationLink>
+                        </PaginationItem>
+                      ))}
+
+                    {/* Show ellipsis if needed */}
+                    {currentPage < (pagination?.totalPages || 1) - 2 && (
+                      <PaginationItem>
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    )}
+                    {/* Last page */}
+                    {pagination?.totalPages && pagination.totalPages > 1 && (
+                      <PaginationItem>
+                        <PaginationLink
+                          href="#"
+                          onClick={() => setCurrentPage(pagination.totalPages)}
+                          isActive={currentPage === pagination?.totalPages}
+                        >
+                          {pagination?.totalPages}
+                        </PaginationLink>
+                      </PaginationItem>
+                    )}
+
+                    <PaginationItem>
+                      <PaginationNext
+                        href="#"
+                        onClick={() =>
+                          setCurrentPage((p) =>
+                            Math.min(p + 1, pagination?.totalPages || 1)
+                          )
+                        }
+                        aria-disabled={currentPage === pagination?.totalPages}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+                <div className="text-sm text-muted-foreground text-center mt-2">
+                  Showing page {pagination?.currentPage} of{" "}
+                  {pagination?.totalPages} ({pagination?.totalEntries} total
+                  entries)
+                </div>
+              </div>
             </CardContent>
           </Card>
         </>
