@@ -1,7 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unused-expressions */
-import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:2800/v1";
+import axios from "axios";
 
 export const axiosInstance = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
@@ -10,19 +7,6 @@ export const axiosInstance = axios.create({
     "Content-Type": "application/json",
   },
 });
-
-let isRefreshing = false;
-let failedQueue: {
-  resolve: (value?: unknown) => void;
-  reject: (reason?: unknown) => void;
-}[] = [];
-
-const processQueue = (error: AxiosError | null) => {
-  failedQueue.forEach((prom) => {
-    error ? prom.reject(error) : prom.resolve();
-  });
-  failedQueue = [];
-};
 
 const getAccessToken = () => localStorage.getItem("accessToken");
 const setAuthHeader = (token: string | null) => {
@@ -33,7 +17,6 @@ const setAuthHeader = (token: string | null) => {
   }
 };
 
-// Append accessToken to each request
 axiosInstance.interceptors.request.use(
   (config) => {
     const token = getAccessToken();
@@ -49,7 +32,13 @@ axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      // Handle token refresh here
+      const response = await axios.post("/api/auth/reset-token");
+
+      if (response.status == 200) {
+        window.location.href = "/auth/login";
+      } else {
+        window.location.href = "/auth/logout";
+      }
     }
     return Promise.reject(error);
   }
