@@ -90,6 +90,12 @@ interface TransactionResponse {
       totalEntries: number;
       totalPages: number;
     };
+
+    totals: {
+      income: number;
+      expenses: number;
+      netChange: number;
+    };
   };
 }
 
@@ -236,7 +242,7 @@ const Transactions = () => {
                   Total Income
                 </CardTitle>
                 <CardDescription className="text-2xl font-bold text-green-600">
-                  {formatAmount(totals.income, "USD")}
+                  {formatAmount(data?.data.totals.income ?? 0, "USD")}
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -246,7 +252,7 @@ const Transactions = () => {
                   Total Expenses
                 </CardTitle>
                 <CardDescription className="text-2xl font-bold text-red-600">
-                  {formatAmount(totals.expenses, "USD")}
+                  {formatAmount(data?.data.totals.expenses ?? 0, "USD")}
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -257,10 +263,12 @@ const Transactions = () => {
                 </CardTitle>
                 <CardDescription
                   className={`text-2xl font-bold ${
-                    totals.net > 0 ? "text-green-600" : "text-red-600"
+                    (data?.data.totals.netChange ?? 0) > 0
+                      ? "text-green-600"
+                      : "text-red-600"
                   }`}
                 >
-                  {formatAmount(totals.net, "USD")}
+                  {formatAmount(data?.data.totals.netChange ?? 0, "USD")}
                 </CardDescription>
               </CardHeader>
             </Card>
