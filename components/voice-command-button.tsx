@@ -65,7 +65,6 @@ export const VoiceCommandButton = () => {
       <VoiceRecorder
         voiceState={voiceState}
         onVoiceStateChange={handleVoiceStateChange}
-        onTranscriptionComplete={handleTranscriptionComplete}
       />
 
       <Button

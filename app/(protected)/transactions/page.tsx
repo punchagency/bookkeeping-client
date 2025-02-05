@@ -124,10 +124,32 @@ const Transactions = () => {
     ].sort();
   }, [transactions]);
 
-  const totals = useMemo(() => {
-    if (!transactions) return { income: 0, expenses: 0, net: 0 };
+  const filteredTransactions = useMemo(() => {
+    return transactions?.filter((transaction) => {
+      const matchesSearch = transaction.description
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
 
-    return transactions.reduce(
+      const matchesCategory =
+        !selectedCategory || transaction.topLevelCategory === selectedCategory;
+
+      const transactionDate = new Date(transaction.date);
+      const matchesDateRange =
+        dateRange.from && dateRange.to
+          ? isWithinInterval(transactionDate, {
+              start: dateRange.from,
+              end: dateRange.to,
+            })
+          : true;
+
+      return matchesSearch && matchesCategory && matchesDateRange;
+    });
+  }, [transactions, searchTerm, selectedCategory, dateRange]);
+
+  const totals = useMemo(() => {
+    if (!filteredTransactions) return { income: 0, expenses: 0, net: 0 };
+
+    return filteredTransactions.reduce(
       (acc, t) => {
         if (t.isIncome) acc.income += t.amount;
         if (t.isExpense) acc.expenses += t.amount;
@@ -136,7 +158,7 @@ const Transactions = () => {
       },
       { income: 0, expenses: 0, net: 0 }
     );
-  }, [transactions]);
+  }, [filteredTransactions]);
 
   const getTransactionIcon = (
     type: string,
@@ -185,7 +207,6 @@ const Transactions = () => {
         </div>
       ) : (
         <>
-          {/* Summary Cards */}
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader className="pb-2">
@@ -230,8 +251,8 @@ const Transactions = () => {
                   <div>
                     <CardTitle>Transactions</CardTitle>
                     <CardDescription>
-                      Showing {transactions?.length} of {transactions?.length}{" "}
-                      transactions
+                      Showing {filteredTransactions?.length} of{" "}
+                      {transactions?.length} transactions
                     </CardDescription>
                   </div>
                 </div>
@@ -283,7 +304,7 @@ const Transactions = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {transactions?.map((transaction) => (
+                  {filteredTransactions?.map((transaction) => (
                     <TableRow
                       key={transaction.guid}
                       className="group hover:bg-muted/50"
@@ -326,7 +347,7 @@ const Transactions = () => {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {transactions?.length === 0 && (
+                  {filteredTransactions?.length === 0 && (
                     <TableRow>
                       <TableCell
                         colSpan={4}
@@ -362,14 +383,12 @@ const Transactions = () => {
                       </PaginationLink>
                     </PaginationItem>
 
-                    {/* Show ellipsis if needed */}
                     {currentPage > 3 && (
                       <PaginationItem>
                         <PaginationEllipsis />
                       </PaginationItem>
                     )}
 
-                    {/* Current page and surrounding pages */}
                     {Array.from({ length: 3 }, (_, i) => currentPage + i - 1)
                       .filter(
                         (page) =>
@@ -387,13 +406,11 @@ const Transactions = () => {
                         </PaginationItem>
                       ))}
 
-                    {/* Show ellipsis if needed */}
                     {currentPage < (pagination?.totalPages || 1) - 2 && (
                       <PaginationItem>
                         <PaginationEllipsis />
                       </PaginationItem>
                     )}
-                    {/* Last page */}
                     {pagination?.totalPages && pagination.totalPages > 1 && (
                       <PaginationItem>
                         <PaginationLink

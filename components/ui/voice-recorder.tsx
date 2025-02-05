@@ -6,217 +6,210 @@ import { Mic, MicOff, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { VoiceState } from "@/types/voice";
 import { toast } from "sonner";
+import { axiosInstance } from "@/app/config/axios";
 import { VoiceVisualizer } from "./voice-visualizer";
 
 interface VoiceRecorderProps {
-  onTranscriptionComplete: (text: string) => Promise<void>;
   voiceState: VoiceState;
   onVoiceStateChange: (state: Partial<VoiceState>) => void;
 }
 
 export const VoiceRecorder = ({
-  onTranscriptionComplete,
   voiceState,
   onVoiceStateChange,
 }: VoiceRecorderProps) => {
-  const recognitionRef = useRef<any>(null);
-  const [interimTranscript, setInterimTranscript] = useState("");
-  const [completeTranscript, setCompleteTranscript] = useState("");
   const [isMuted, setIsMuted] = useState(true);
   const [hasPermission, setHasPermission] = useState(false);
   const [speechStatus, setSpeechStatus] = useState<
-    "idle" | "listening" | "processing" | "stopped"
+    "idle" | "connecting" | "listening" | "processing" | "stopped"
   >("idle");
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const SpeechRecognition =
-        (window as any).SpeechRecognition ||
-        (window as any).webkitSpeechRecognition;
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const dataChannelRef = useRef<RTCDataChannel | null>(null);
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
 
-      if (SpeechRecognition) {
-        const recog = new SpeechRecognition();
-        recog.continuous = true;
-        recog.interimResults = true;
-        recog.lang = "en-US";
-
-        recog.onstart = () => {
-          console.log("Speech recognition started");
-          onVoiceStateChange({ isListening: true });
-          setIsMuted(false);
-          setCompleteTranscript("");
-          setSpeechStatus("idle");
-        };
-
-        recog.onresult = (event: any) => {
-          let interimTranscript = "";
-          let finalTranscript = "";
-
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            const transcript = event.results[i][0].transcript;
-            if (event.results[i].isFinal) {
-              finalTranscript += transcript;
-              console.log("Final transcript:", finalTranscript);
-              setCompleteTranscript((prev) => prev + " " + finalTranscript);
-            } else {
-              interimTranscript += transcript;
-              console.log("Interim transcript:", interimTranscript);
-            }
-          }
-
-          setInterimTranscript(interimTranscript);
-          if (finalTranscript) {
-            console.log("Sending final transcript:", finalTranscript);
-            onVoiceStateChange({ transcript: finalTranscript });
-          }
-        };
-
-        recog.onaudiostart = () => {
-          console.log("Audio capturing started");
-          setSpeechStatus("idle");
-        };
-
-        recog.onspeechstart = () => {
-          console.log("Speech started");
-          setSpeechStatus("listening");
-        };
-
-        recog.onspeechend = () => {
-          console.log("Speech ended");
-          setSpeechStatus("stopped");
-          setTimeout(() => {
-            console.log("Complete conversation:", completeTranscript.trim());
-          }, 1000);
-        };
-
-        recog.onend = async () => {
-          console.log("Speech recognition ended");
-          if (voiceState.transcript) {
-            console.log(
-              "Final complete transcript:",
-              completeTranscript.trim()
-            );
-            onVoiceStateChange({ isProcessing: true });
-            setSpeechStatus("processing");
-            await onTranscriptionComplete(completeTranscript.trim());
-            onVoiceStateChange({ isProcessing: false, transcript: "" });
-          }
-          onVoiceStateChange({ isListening: false });
-          setIsMuted(true);
-          setCompleteTranscript("");
-          setSpeechStatus("idle");
-        };
-
-        recog.onerror = (event: any) => {
-          console.error("Speech recognition error:", event.error);
-          if (event.error === "not-allowed") {
-            toast.error("Microphone access denied");
-          } else {
-            toast.error(`Speech recognition error: ${event.error}`);
-          }
-          cancelRecording();
-        };
-
-        recognitionRef.current = recog;
-      } else {
-        toast.error("Speech recognition is not supported in your browser");
-      }
-    }
-  }, [onVoiceStateChange]);
-
-  const requestMicrophonePermission = async () => {
+  const initializeWebRTC = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach((track) => track.stop());
-      return true;
+      setSpeechStatus("connecting");
+      const response = await axiosInstance.post("/ai/session");
+      const EPHEMERAL_KEY = response.data.data.client_secret.value;
+
+      const pc = new RTCPeerConnection();
+      peerConnectionRef.current = pc;
+
+      const audioEl = new Audio();
+      audioEl.autoplay = true;
+      audioElementRef.current = audioEl;
+
+      pc.ontrack = (e) => {
+        audioEl.srcObject = e.streams[0];
+      };
+
+      const ms = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      });
+
+      mediaStreamRef.current = ms;
+      pc.addTrack(ms.getTracks()[0]);
+
+      const dc = pc.createDataChannel("oai-events");
+      dataChannelRef.current = dc;
+
+      dc.addEventListener("message", (e) => {
+        console.log("Received message from OpenAI:", e.data);
+        if (e.data) {
+          try {
+            const response = JSON.parse(e.data);
+            console.log("Parsed response:", response);
+
+            if (response.type === "speech") {
+              onVoiceStateChange({
+                transcript: response.text,
+                isProcessing: false,
+                response: response.content || response.text,
+              });
+            } else if (
+              response.type === "function_call" &&
+              response.function === "analyze_transactions"
+            ) {
+              console.log("Transaction analysis:", response.arguments);
+            }
+          } catch (error) {
+            console.error("Error parsing AI response:", error);
+            toast.error("Error processing AI response");
+          }
+        }
+      });
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      const baseUrl = "https://api.openai.com/v1/realtime";
+      const model = "gpt-4o-realtime-preview-2024-12-17";
+      const sdpResponse = await fetch(`${baseUrl}?model=${model}`, {
+        method: "POST",
+        body: offer.sdp,
+        headers: {
+          Authorization: `Bearer ${EPHEMERAL_KEY}`,
+          "Content-Type": "application/sdp",
+        },
+      });
+
+      const answer = {
+        type: "answer",
+        sdp: await sdpResponse.text(),
+      };
+
+      await pc.setRemoteDescription(answer as RTCSessionDescriptionInit);
+
+      setSpeechStatus("listening");
+      setIsMuted(false);
+      onVoiceStateChange({ isListening: true });
+      toast.success("Voice service connected!");
     } catch (error) {
-      console.error("Error getting microphone permission:", error);
-      toast.error("Please allow microphone access to use voice commands");
-      return false;
+      console.error("Error initializing WebRTC:", error);
+      toast.error("Failed to connect to voice service. Please try again.");
+      setSpeechStatus("idle");
+      setIsMuted(true);
+      onVoiceStateChange({ isListening: false });
     }
   };
 
-  const toggleMicrophone = useCallback(async () => {
-    console.log("toggleMicrophone called", {
-      hasPermission,
-      isListening: voiceState.isListening,
-      recognition: recognitionRef.current,
-    });
+  const stopWebRTC = () => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+    }
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+    }
+    if (dataChannelRef.current) {
+      dataChannelRef.current.close();
+    }
+    if (audioElementRef.current) {
+      audioElementRef.current.srcObject = null;
+    }
 
+    setSpeechStatus("stopped");
+    setIsMuted(true);
+    onVoiceStateChange({ isListening: false });
+  };
+
+  const toggleMicrophone = useCallback(async () => {
     if (!hasPermission) {
-      const permissionGranted = await requestMicrophonePermission();
-      if (!permissionGranted) return;
-      setHasPermission(true);
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        setHasPermission(true);
+      } catch (error) {
+        console.error("Error getting microphone permission:", error);
+        toast.error("Please allow microphone access to use voice commands");
+        return;
+      }
     }
 
     if (isMuted) {
-      try {
-        console.log("Attempting to start recognition");
-        recognitionRef.current?.start();
-        console.log("Starting speech recognition...");
-      } catch (error) {
-        console.error("Error starting recognition:", error);
-        toast.error("Error starting voice recognition");
-      }
+      await initializeWebRTC();
     } else {
-      try {
-        recognitionRef.current?.stop();
-      } catch (error) {
-        console.error("Error stopping recognition:", error);
-      }
-      setIsMuted(!isMuted);
+      stopWebRTC();
     }
-  }, [hasPermission, voiceState.isListening, isMuted]);
+  }, [hasPermission, isMuted, onVoiceStateChange]);
 
   const cancelRecording = useCallback(() => {
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (error) {
-        console.error("Error stopping recognition:", error);
-      }
-      setInterimTranscript("");
-      onVoiceStateChange({
-        isListening: false,
-        transcript: "",
-        response: "",
-        isProcessing: false,
-      });
-      setIsMuted(true);
-      setHasPermission(false);
-    }
+    stopWebRTC();
+    onVoiceStateChange({
+      isListening: false,
+      transcript: "",
+      response: "",
+      isProcessing: false,
+    });
   }, [onVoiceStateChange]);
+
+  useEffect(() => {
+    return () => {
+      stopWebRTC();
+    };
+  }, []);
 
   return (
     <div
       className={cn(
         "fixed bottom-24 left-0 right-0 flex flex-col items-center gap-4 p-4 transition-all duration-300",
-        voiceState.isListening || voiceState.isProcessing
+        voiceState.isListening ||
+          voiceState.isProcessing ||
+          speechStatus === "connecting"
           ? "opacity-100 translate-y-0"
           : "opacity-0 translate-y-full pointer-events-none"
       )}
     >
-      {voiceState.isListening && !isMuted && (
+      {speechStatus === "connecting" && (
+        <div className="w-full flex justify-center items-center gap-2 mb-4">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <p className="text-sm font-medium text-muted-foreground">
+            Connecting to voice service...
+          </p>
+        </div>
+      )}
+
+      {speechStatus === "listening" && !isMuted && (
         <div className="w-full mb-4">
           <VoiceVisualizer isListening={voiceState.isListening} />
         </div>
       )}
 
-      {(voiceState.transcript || interimTranscript) && (
+      {voiceState.transcript && (
         <div className="bg-background/95 backdrop-blur-md p-6 rounded-xl shadow-xl max-w-2xl w-full border border-border/50">
           <div className="flex items-center gap-2 mb-3">
             <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
             <p className="text-sm font-medium text-muted-foreground">
               {speechStatus === "idle" && "Ready to listen"}
+              {speechStatus === "connecting" && "Connecting..."}
               {speechStatus === "listening" && "Listening..."}
               {speechStatus === "processing" && "Processing..."}
               {speechStatus === "stopped" && "Stopped"}
             </p>
           </div>
           <p className="text-lg leading-relaxed">
-            {voiceState.transcript ||
-              interimTranscript ||
-              "Waiting for speech..."}
+            {voiceState.transcript || "Waiting for speech..."}
           </p>
           <div className="mt-2 flex justify-end">
             <p className="text-xs text-muted-foreground italic">
@@ -242,9 +235,9 @@ export const VoiceRecorder = ({
           size="lg"
           className="h-16 w-16 rounded-full shadow-lg"
           onClick={toggleMicrophone}
-          disabled={voiceState.isProcessing}
+          disabled={voiceState.isProcessing || speechStatus === "connecting"}
         >
-          {voiceState.isProcessing ? (
+          {voiceState.isProcessing || speechStatus === "connecting" ? (
             <Loader2 className="h-6 w-6 animate-spin" />
           ) : isMuted ? (
             <MicOff className="h-6 w-6" />
