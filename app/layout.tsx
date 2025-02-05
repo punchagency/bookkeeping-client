@@ -10,7 +10,7 @@ const afacadFlux = Afacad_Flux({
 });
 
 export const metadata: Metadata = {
-  title: "Mx Project Demo",
+  title: "Punch Bookkeeping Demo",
   description: "Mx Project Demo",
 };
 
