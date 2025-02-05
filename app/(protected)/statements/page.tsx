@@ -60,7 +60,7 @@ const Statements = () => {
   const { data, isLoading } = useQuery({
     queryKey: ["statements"],
     queryFn: async () => {
-      const response = await axiosInstance.get("/mx-user/statements");
+      const response = await axiosInstance.post("/mx-user/statements");
       return response.data as StatementData;
     },
   });
