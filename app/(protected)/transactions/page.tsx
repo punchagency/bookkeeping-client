@@ -1,6 +1,6 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import dayjs from "dayjs";
 import {
   Table,
@@ -97,10 +97,19 @@ const Transactions = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [dateRange, setDateRange] = useState<DateRange>({
+  const [dateRange, setDateRange] = useState<DateRange | null>({
     from: addDays(new Date(), -30),
     to: new Date(),
   });
+
+  useEffect(() => {
+    setSearchTerm("");
+    setSelectedCategory(null);
+    setDateRange({
+      from: undefined,
+      to: undefined,
+    });
+  }, [currentPage]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["transactions", currentPage],
@@ -125,22 +134,35 @@ const Transactions = () => {
   }, [transactions]);
 
   const filteredTransactions = useMemo(() => {
-    return transactions?.filter((transaction) => {
-      const matchesSearch = transaction.description
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase());
+    if (!transactions) return [];
+
+    if (
+      searchTerm === "" &&
+      !selectedCategory &&
+      !dateRange!.from &&
+      !dateRange!.to
+    ) {
+      return transactions;
+    }
+
+    return transactions.filter((transaction) => {
+      const matchesSearch =
+        searchTerm === "" ||
+        transaction.description
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase());
 
       const matchesCategory =
         !selectedCategory || transaction.topLevelCategory === selectedCategory;
 
       const transactionDate = new Date(transaction.date);
       const matchesDateRange =
-        dateRange.from && dateRange.to
-          ? isWithinInterval(transactionDate, {
-              start: dateRange.from,
-              end: dateRange.to,
-            })
-          : true;
+        !dateRange!.from ||
+        !dateRange!.to ||
+        isWithinInterval(transactionDate, {
+          start: dateRange!.from,
+          end: dateRange!.to,
+        });
 
       return matchesSearch && matchesCategory && matchesDateRange;
     });
@@ -286,7 +308,12 @@ const Transactions = () => {
                     </SelectContent>
                   </Select>
                   <DatePickerWithRange
-                    date={dateRange}
+                    date={
+                      dateRange || {
+                        from: undefined,
+                        to: undefined,
+                      }
+                    }
                     onDateChange={setDateRange}
                   />
                 </div>
@@ -372,7 +399,6 @@ const Transactions = () => {
                       />
                     </PaginationItem>
 
-                    {/* First page */}
                     <PaginationItem>
                       <PaginationLink
                         href="#"
