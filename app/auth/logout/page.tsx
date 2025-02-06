@@ -37,6 +37,7 @@ const Logout = () => {
       toast.success("Logged out successfully");
       router.push("/auth/login");
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onError: (error: any) => {
       toast.error(
         error.response?.data?.errors[0] || "Logout failed. Please try again."

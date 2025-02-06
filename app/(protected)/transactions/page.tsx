@@ -174,20 +174,6 @@ const Transactions = () => {
     });
   }, [transactions, searchTerm, selectedCategory, dateRange]);
 
-  const totals = useMemo(() => {
-    if (!filteredTransactions) return { income: 0, expenses: 0, net: 0 };
-
-    return filteredTransactions.reduce(
-      (acc, t) => {
-        if (t.isIncome) acc.income += t.amount;
-        if (t.isExpense) acc.expenses += t.amount;
-        acc.net += t.isIncome ? t.amount : -t.amount;
-        return acc;
-      },
-      { income: 0, expenses: 0, net: 0 }
-    );
-  }, [filteredTransactions]);
-
   const getTransactionIcon = (
     type: string,
     isExpense: boolean,
