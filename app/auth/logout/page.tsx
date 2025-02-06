@@ -16,7 +16,6 @@ const Logout = () => {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      // First call the backend logout endpoint
       const response = await axiosInstance.post(
         "/auth/logout",
         {},

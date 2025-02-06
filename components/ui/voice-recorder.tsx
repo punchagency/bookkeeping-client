@@ -28,6 +28,28 @@ export const VoiceRecorder = ({
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
+  const stopMicrophone = useCallback(() => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => {
+        track.enabled = false;
+      });
+    }
+    setIsMuted(true);
+    setSpeechStatus("stopped");
+  }, []);
+
+  const startMicrophone = useCallback(() => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => {
+        track.enabled = true;
+      });
+      setIsMuted(false);
+      setSpeechStatus("listening");
+      return true;
+    }
+    return false;
+  }, []);
+
   const initializeWebRTC = async () => {
     try {
       setSpeechStatus("connecting");
@@ -115,144 +137,147 @@ export const VoiceRecorder = ({
     }
   };
 
-  const stopWebRTC = () => {
+  const toggleMicrophone = useCallback(async () => {
+    try {
+      if (!isMuted) {
+        stopMicrophone();
+        return;
+      }
+
+      if (startMicrophone()) {
+        return;
+      }
+
+      if (!hasPermission) {
+        const permission = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
+        setHasPermission(true);
+        permission.getTracks().forEach((track) => track.stop());
+      }
+
+      await initializeWebRTC();
+      setIsMuted(false);
+      setSpeechStatus("listening");
+    } catch (error) {
+      console.error("Error toggling microphone:", error);
+      toast.error("Failed to access microphone");
+    }
+  }, [hasPermission, isMuted, initializeWebRTC, startMicrophone]);
+
+  const cancelRecording = useCallback(() => {
+    // Stop all audio tracks and close connections
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
     }
     if (peerConnectionRef.current) {
       peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
     }
     if (dataChannelRef.current) {
       dataChannelRef.current.close();
+      dataChannelRef.current = null;
     }
     if (audioElementRef.current) {
       audioElementRef.current.srcObject = null;
     }
 
-    setSpeechStatus("stopped");
-    setIsMuted(true);
-    onVoiceStateChange({ isListening: false });
-  };
-
-  const toggleMicrophone = useCallback(async () => {
-    if (!hasPermission) {
-      try {
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-        setHasPermission(true);
-      } catch (error) {
-        console.error("Error getting microphone permission:", error);
-        toast.error("Please allow microphone access to use voice commands");
-        return;
-      }
-    }
-
-    if (isMuted) {
-      await initializeWebRTC();
-    } else {
-      stopWebRTC();
-    }
-  }, [hasPermission, isMuted, onVoiceStateChange]);
-
-  const cancelRecording = useCallback(() => {
-    stopWebRTC();
+    stopMicrophone();
     onVoiceStateChange({
-      isListening: false,
       transcript: "",
-      response: "",
       isProcessing: false,
+      response: "",
+      isListening: false,
     });
-  }, [onVoiceStateChange]);
+  }, [onVoiceStateChange, stopMicrophone]);
 
   useEffect(() => {
     return () => {
-      stopWebRTC();
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
+      }
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close();
+      }
+      if (dataChannelRef.current) {
+        dataChannelRef.current.close();
+      }
     };
   }, []);
 
   return (
     <div
       className={cn(
-        "fixed bottom-24 left-0 right-0 flex flex-col items-center gap-4 p-4 transition-all duration-300",
+        "fixed bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 transition-all duration-300 z-50",
         voiceState.isListening ||
           voiceState.isProcessing ||
           speechStatus === "connecting"
           ? "opacity-100 translate-y-0"
-          : "opacity-0 translate-y-full pointer-events-none"
+          : "opacity-0 translate-y-10 pointer-events-none"
       )}
     >
-      {speechStatus === "connecting" && (
-        <div className="w-full flex justify-center items-center gap-2 mb-4">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          <p className="text-sm font-medium text-muted-foreground">
-            Connecting to voice service...
-          </p>
-        </div>
-      )}
-
-      {speechStatus === "listening" && !isMuted && (
-        <div className="w-full mb-4">
-          <VoiceVisualizer isListening={voiceState.isListening} />
-        </div>
-      )}
-
-      {voiceState.transcript && (
-        <div className="bg-background/95 backdrop-blur-md p-6 rounded-xl shadow-xl max-w-2xl w-full border border-border/50">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+      <div className="flex flex-col items-center gap-4">
+        {speechStatus === "connecting" && (
+          <div className="bg-background/95 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg border border-border/50 flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
             <p className="text-sm font-medium text-muted-foreground">
-              {speechStatus === "idle" && "Ready to listen"}
-              {speechStatus === "connecting" && "Connecting..."}
-              {speechStatus === "listening" && "Listening..."}
-              {speechStatus === "processing" && "Processing..."}
-              {speechStatus === "stopped" && "Stopped"}
+              Connecting...
             </p>
           </div>
-          <p className="text-lg leading-relaxed">
-            {voiceState.transcript || "Waiting for speech..."}
-          </p>
-          <div className="mt-2 flex justify-end">
-            <p className="text-xs text-muted-foreground italic">
-              Speak clearly into your microphone
+        )}
+
+        {speechStatus === "listening" && !isMuted && (
+          <div className="bg-background/95 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-border/50 max-w-md">
+            <VoiceVisualizer isListening={voiceState.isListening} />
+          </div>
+        )}
+
+        {voiceState.transcript && (
+          <div className="bg-background/95 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-border/50 max-w-md">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+              <p className="text-sm font-medium text-muted-foreground">
+                {speechStatus === "idle" && "Ready"}
+                {speechStatus === "connecting" && "Connecting"}
+                {speechStatus === "listening" && "Listening"}
+                {speechStatus === "processing" && "Processing"}
+                {speechStatus === "stopped" && "Stopped"}
+              </p>
+            </div>
+            <p className="text-base leading-relaxed">
+              {voiceState.transcript || "Waiting for speech..."}
             </p>
           </div>
-        </div>
-      )}
+        )}
 
-      {voiceState.response && (
-        <div className="bg-primary/5 p-6 rounded-xl shadow-xl max-w-2xl w-full border border-primary/10">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-            <p className="text-sm font-medium text-primary">AI Response</p>
-          </div>
-          <p className="text-lg leading-relaxed">{voiceState.response}</p>
+        <div className="bg-background/95 backdrop-blur-sm px-6 py-2 rounded-full shadow-lg border border-border/50 flex items-center gap-6">
+          <Button
+            variant="secondary"
+            size="lg"
+            className="h-10 w-10 rounded-full"
+            onClick={toggleMicrophone}
+            disabled={voiceState.isProcessing || speechStatus === "connecting"}
+          >
+            {voiceState.isProcessing || speechStatus === "connecting" ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : isMuted ? (
+              <MicOff className="h-5 w-5" />
+            ) : (
+              <Mic className="h-5 w-5" />
+            )}
+          </Button>
+          <Button
+            variant="destructive"
+            size="lg"
+            className="h-10 w-10 rounded-full"
+            onClick={cancelRecording}
+            disabled={voiceState.isProcessing}
+          >
+            <X className="h-5 w-5" />
+          </Button>
         </div>
-      )}
-
-      <div className="flex gap-4">
-        <Button
-          variant="secondary"
-          size="lg"
-          className="h-16 w-16 rounded-full shadow-lg"
-          onClick={toggleMicrophone}
-          disabled={voiceState.isProcessing || speechStatus === "connecting"}
-        >
-          {voiceState.isProcessing || speechStatus === "connecting" ? (
-            <Loader2 className="h-6 w-6 animate-spin" />
-          ) : isMuted ? (
-            <MicOff className="h-6 w-6" />
-          ) : (
-            <Mic className="h-6 w-6" />
-          )}
-        </Button>
-        <Button
-          variant="destructive"
-          size="lg"
-          className="h-16 w-16 rounded-full shadow-lg"
-          onClick={cancelRecording}
-          disabled={voiceState.isProcessing}
-        >
-          <X className="h-6 w-6" />
-        </Button>
       </div>
     </div>
   );
