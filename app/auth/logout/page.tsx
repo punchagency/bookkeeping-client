@@ -25,12 +25,10 @@ const Logout = () => {
         }
       );
 
-      // Then remove the refresh token via our Next.js API route
       await fetch("/api/auth/reset-token", {
         method: "POST",
       });
 
-      // Clear local storage
       localStorage.removeItem("accessToken");
 
       return response.data;
@@ -39,7 +37,6 @@ const Logout = () => {
       toast.success("Logged out successfully");
       router.push("/auth/login");
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onError: (error: any) => {
       toast.error(
         error.response?.data?.errors[0] || "Logout failed. Please try again."

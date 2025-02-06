@@ -6,10 +6,6 @@ export default function Home() {
       <h1 className="text-4xl font-bold">Hi, Welcome</h1>
       <div>
         Please{" "}
-        <Link href={"/auth/signup"} className="underline">
-          Signup
-        </Link>{" "}
-        or{" "}
         <Link href={"/auth/login"} className="underline">
           Login
         </Link>{" "}
