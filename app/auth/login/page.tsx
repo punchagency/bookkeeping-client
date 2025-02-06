@@ -1,18 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
+import { toast } from "sonner";
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardHeader,
-  CardContent,
-} from "@/components/ui/card";
+
+import { Loader } from "@/components/loader";
 import { axiosInstance } from "@/app/config/axios";
 import { useMutation } from "@tanstack/react-query";
-import { Loader } from "@/components/loader";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
 
 interface FormData {
   email: string;

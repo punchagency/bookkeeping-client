@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
+import dayjs from "dayjs";
 import { useQuery } from "@tanstack/react-query";
 import {
   Table,
@@ -9,9 +10,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { axiosInstance } from "@/app/config/axios";
 import { Loader } from "@/components/loader";
-import dayjs from "dayjs";
+import { axiosInstance } from "@/app/config/axios";
 
 interface MxUser {
   id: string;

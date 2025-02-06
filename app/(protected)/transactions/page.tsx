@@ -1,7 +1,10 @@
+
 "use client";
+import dayjs from "dayjs";
+import { DateRange } from "react-day-picker";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo, useEffect } from "react";
-import dayjs from "dayjs";
+import { addDays, isWithinInterval } from "date-fns";
 import {
   Table,
   TableBody,
@@ -29,7 +32,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
-import { addDays, isWithinInterval } from "date-fns";
+
+
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -37,7 +41,6 @@ import {
   SearchIcon,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { DateRange } from "react-day-picker";
 import {
   Pagination,
   PaginationContent,
@@ -130,8 +133,8 @@ const Transactions = () => {
     },
   });
 
-  const transactions = data?.data.transactions;
   const pagination = data?.data.pagination;
+  const transactions = data?.data.transactions;
 
   const categories = useMemo(() => {
     return [

@@ -85,10 +85,8 @@ export function ConnectBankDialog({
   }, [open]);
 
   useEffect(() => {
-    // Add event listener when dialog opens
     window.addEventListener("message", handleMXEvent);
 
-    // Cleanup listener when dialog closes
     return () => {
       window.removeEventListener("message", handleMXEvent);
     };

@@ -1,15 +1,15 @@
 "use client";
 import Link from "next/link";
-import { AlertCircle } from "lucide-react";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { AlertCircle } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 
+import { Loader } from "@/components/loader";
 import { Button } from "@/components/ui/button";
+import { axiosInstance } from "@/app/config/axios";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { Loader } from "@/components/loader";
-import { axiosInstance } from "@/app/config/axios";
-import { toast } from "sonner";
 
 const Logout = () => {
   const router = useRouter();

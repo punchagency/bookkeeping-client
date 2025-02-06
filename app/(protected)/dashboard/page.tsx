@@ -3,8 +3,6 @@ import dayjs from "dayjs";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { ConnectBankDialog } from "./components/connect-bank-dialog";
 import {
   PlusCircle,
   Building2,
@@ -34,6 +32,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { ConnectBankDialog } from "./components/connect-bank-dialog";
 
 interface ConnectedBank {
   guid: string;

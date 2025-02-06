@@ -1,6 +1,6 @@
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { VoiceCommandButton } from "@/components/voice-command-button";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 
 
 export default function Layout({

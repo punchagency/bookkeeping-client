@@ -11,7 +11,7 @@ const afacadFlux = Afacad_Flux({
 
 export const metadata: Metadata = {
   title: "Punch Bookkeeping Demo",
-  description: "Mx Project Demo",
+  description: "Punch Bookkeeping project Demo",
 };
 
 export default function RootLayout({
