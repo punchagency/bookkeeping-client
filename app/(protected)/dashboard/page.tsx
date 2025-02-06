@@ -34,7 +34,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { VoiceCommandButton } from "@/components/voice-command-button";
 
 interface ConnectedBank {
   guid: string;
@@ -243,8 +242,6 @@ const Dashboard = () => {
         onOpenChange={setShowConnectBank}
         onBankConnected={handleBankConnected}
       />
-
-      <VoiceCommandButton />
     </div>
   );
 };

@@ -1,5 +1,7 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { VoiceCommandButton } from "@/components/voice-command-button";
+
 
 export default function Layout({
   children,
@@ -13,6 +15,7 @@ export default function Layout({
       <main className="p-2">
         <SidebarTrigger />
         {children}
+        <VoiceCommandButton/>
       </main>
     </SidebarProvider>
   );
