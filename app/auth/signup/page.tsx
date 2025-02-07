@@ -45,10 +45,14 @@ const Signup = () => {
       toast.success("Account created successfully!");
     },
     onError: (error: any) => {
-      toast.error(
-        error.response?.data?.errors[0] ||
-          "Failed to create account. Please try again."
-      );
+      const errorMessage =
+        error.response?.data?.errors?.[0]?.message ||
+        error.response?.data?.errors?.[0] ||
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to create account. Please try again.";
+
+      toast.error(errorMessage);
     },
   });
 
@@ -67,7 +71,7 @@ const Signup = () => {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50">
+    <div className="flex items-center justify-center min-h-screen">
       <Card className="w-full max-w-md">
         <CardHeader>
           <h1 className="text-2xl font-bold text-center">Create Account</h1>
