@@ -40,9 +40,9 @@ const Signup = () => {
       });
       return response.data;
     },
-    onSuccess: (data: any) => {
-      console.log(data);
-      toast.success("Account created successfully!");
+    onSuccess: (response: any) => {
+      toast.success(response.message);
+      router.push("/auth/verify-otp");
     },
     onError: (error: any) => {
       const errorMessage =
