@@ -1,12 +1,12 @@
 "use client";
 import Link from "next/link";
-import Image from "next/image";
 import {
   Gauge,
   ScrollText,
   BadgeDollarSign,
   LogOut,
   Users,
+  Settings,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useUserStore } from "@/store/user-store";
@@ -60,6 +60,12 @@ const sidebarFooterItems = [
     url: "/auth/logout",
     icon: LogOut,
   },
+
+  {
+    title: "Settings",
+    url: "/settings",
+    icon: Settings,
+  },
 ];
 
 export function AppSidebar() {
@@ -112,20 +118,22 @@ export function AppSidebar() {
             </div>
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            className="w-56"
+            className="w-60"
             align="start"
             side="top"
             sideOffset={8}
           >
-            <DropdownMenuItem asChild>
-              <Link
-                href="/auth/logout"
-                className="flex items-center gap-2 cursor-pointer"
-              >
-                <LogOut className="h-4 w-4" />
-                <span>Logout</span>
-              </Link>
-            </DropdownMenuItem>
+            {sidebarFooterItems.map((item) => (
+              <DropdownMenuItem key={item.title}>
+                <Link
+                  href={item.url}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  <item.icon className="h-4 w-4" />
+                  <span>{item.title}</span>
+                </Link>
+              </DropdownMenuItem>
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarFooter>
