@@ -7,9 +7,10 @@ import { useMutation } from "@tanstack/react-query";
 
 import { Loader } from "@/components/loader";
 import { Button } from "@/components/ui/button";
-import { axiosInstance } from "@/app/config/axios";
+import { axiosInstance, logoutUser } from "@/app/config/axios";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
+import { useUserStore } from "@/store/user-store";
 
 const Logout = () => {
   const router = useRouter();
@@ -34,6 +35,8 @@ const Logout = () => {
     },
     onSuccess: () => {
       toast.success("Logged out successfully");
+      logoutUser();
+      useUserStore.getState().setUser(null);
       router.push("/auth/login");
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

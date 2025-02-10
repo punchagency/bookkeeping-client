@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 import { Loader } from "@/components/loader";
-import { axiosInstance } from "@/app/config/axios";
+import { axiosInstance, loginUser } from "@/app/config/axios";
 import { useMutation } from "@tanstack/react-query";
 import {
   Card,
@@ -17,6 +17,7 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import Link from "next/link";
+import { useUserStore } from "@/store/user-store";
 
 interface FormData {
   email: string;
@@ -59,18 +60,25 @@ const Login = () => {
         body: JSON.stringify({ token: response.data.data.refreshToken }),
       });
 
-      localStorage.setItem("accessToken", response.data.data.accessToken);
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (response: any) => {
+      loginUser(response.data.accessToken);
+
+      useUserStore.getState().setUser(response.data.user);
+
       toast.success("Login successful!");
       router.push("/dashboard");
     },
-
     onError: (error: any) => {
-      toast.error(
-        error.response?.data?.errors[0] || "Login failed. Please try again."
-      );
+      const errorMessage =
+        error.response?.data?.errors?.[0]?.message ||
+        error.response?.data?.errors?.[0] ||
+        error.response?.data?.message ||
+        error.message ||
+        "Login failed. Please try again.";
+
+      toast.error(errorMessage);
     },
   });
 
