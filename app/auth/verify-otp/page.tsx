@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
@@ -19,11 +19,35 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
-import { REGEXP_ONLY_DIGITS_AND_CHARS } from "input-otp";
 
 const VerifyOTP = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [otp, setOtp] = useState("");
+  const [isResendDisabled, setIsResendDisabled] = useState(false);
+  const [countdown, setCountdown] = useState(60);
+
+  const email = searchParams.get("email");
+
+  useEffect(() => {
+    if (!email) {
+      router.push("/auth/login");
+    }
+  }, [router, searchParams]);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval>;
+    if (isResendDisabled && countdown > 0) {
+      timer = setInterval(() => {
+        setCountdown((prev) => prev - 1);
+      }, 1000);
+    }
+    if (countdown === 0) {
+      setIsResendDisabled(false);
+      setCountdown(60);
+    }
+    return () => clearInterval(timer);
+  }, [isResendDisabled, countdown]);
 
   const verifyMutation = useMutation({
     mutationFn: async (otp: string) => {
@@ -48,6 +72,28 @@ const VerifyOTP = () => {
     },
   });
 
+  const resendMutation = useMutation({
+    mutationFn: async () => {
+      const response = await axiosInstance.post("/auth/resend-otp", {
+        email: email,
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      toast.success("New OTP has been sent to your email");
+      setOtp("");
+      setIsResendDisabled(true);
+    },
+    onError: (error: any) => {
+      const errorMessage =
+        error.response?.data?.errors?.[0]?.message ||
+        error.response?.data?.message ||
+        "Failed to resend OTP. Please try again.";
+
+      toast.error(errorMessage);
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (otp.length !== 6) {
@@ -57,8 +103,10 @@ const VerifyOTP = () => {
   };
 
   const handleResendOtp = () => {
-    // TODO: Implement resend OTP
-    toast.info("Resending OTP...");
+    if (!email) {
+      return toast.error("Please try verifying an OTP first");
+    }
+    resendMutation.mutate();
   };
 
   return (
@@ -74,7 +122,7 @@ const VerifyOTP = () => {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-8">
-            <div className="space-y-2">
+            <div className="space-y-6">
               <div className="flex items-center justify-center">
                 <InputOTP
                   maxLength={6}
@@ -115,8 +163,13 @@ const VerifyOTP = () => {
               variant="link"
               className="p-0 h-auto font-normal"
               onClick={handleResendOtp}
+              disabled={isResendDisabled || resendMutation.isPending}
             >
-              Click to resend
+              {isResendDisabled
+                ? `Try again in ${countdown}s`
+                : resendMutation.isPending
+                ? "Sending..."
+                : "Click to resend"}
             </Button>
           </p>
           <p className="text-xs text-gray-400">The OTP will expire in 1 hour</p>

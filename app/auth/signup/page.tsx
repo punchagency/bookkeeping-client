@@ -42,7 +42,7 @@ const Signup = () => {
     },
     onSuccess: (response: any) => {
       toast.success(response.message);
-      router.push("/auth/verify-otp");
+      router.push(`/auth/verify-otp?email=${formData.email}`);
     },
     onError: (error: any) => {
       const errorMessage =
