@@ -54,6 +54,7 @@ export const VoiceRecorder = ({
         const isFinal = event.results[event.results.length - 1].isFinal;
 
         if (isFinal) {
+          // Update messages for the chat window
           setMessages((prev) => [
             ...prev,
             {
@@ -62,13 +63,39 @@ export const VoiceRecorder = ({
               timestamp: new Date(),
             },
           ]);
+
+          // Update voice state to show the transcript
+          onVoiceStateChange({
+            transcript: transcript,
+            isProcessing: true,
+          });
+        } else {
+          // Update voice state with interim results
+          onVoiceStateChange({
+            transcript: transcript,
+            isProcessing: false,
+          });
         }
+      };
+
+      recognition.onstart = () => {
+        console.log("Speech recognition started");
+        setSpeechStatus("listening");
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error:", event.error);
+        setSpeechStatus("stopped");
+      };
+
+      recognition.onend = () => {
+        console.log("Speech recognition ended");
+        setSpeechStatus("stopped");
       };
 
       setRecognition(recognition);
     }
-  }, []);
-  // Debug logging for messages state
+  }, [onVoiceStateChange]);
   useEffect(() => {
     console.log("Current messages state:", messages);
   }, [messages]);
