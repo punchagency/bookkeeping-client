@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
-import React, { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
+import React, { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/loader";
+import { Button } from "@/components/ui/button";
 import { axiosInstance } from "@/app/config/axios";
 import {
   Card,
@@ -20,7 +20,7 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp";
 
-const VerifyOTP = () => {
+const VerifyOTPContent = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [otp, setOtp] = useState("");
@@ -176,6 +176,20 @@ const VerifyOTP = () => {
         </CardFooter>
       </Card>
     </div>
+  );
+};
+
+const VerifyOTP = () => {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-screen">
+          <Loader isLoading={true} />
+        </div>
+      }
+    >
+      <VerifyOTPContent />
+    </Suspense>
   );
 };
 

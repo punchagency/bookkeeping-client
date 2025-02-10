@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const publicPaths = ["/auth/login", "/auth/signup", "/"];
+const publicPaths = ["/auth/login", "/auth/signup", "/auth/verify-otp", "/"];
 
 export function middleware(request: NextRequest) {
   const token = request.cookies.get("next_refresh_token")?.value || "";
