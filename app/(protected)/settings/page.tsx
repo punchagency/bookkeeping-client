@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @next/next/no-img-element */
 "use client";
 import { toast } from "sonner";
@@ -71,10 +72,9 @@ const Settings = () => {
       const response = await axiosInstance.put("/settings", data);
       return response.data;
     },
-    onSuccess: async (response) => {
-      // Refetch settings to get the updated data including new avatar
+    onSuccess: async (response: any) => {
       await refetch();
-      toast.success("Profile updated successfully!");
+      toast.success(response.message ?? "Profile updated successfully!");
     },
     onError: (error: AxiosError<{ message: string }>) => {
       const errorMessage =
