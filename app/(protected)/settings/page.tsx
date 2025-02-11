@@ -96,10 +96,25 @@ const Settings = () => {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="flex justify-center items-center">
-          <Loader size={30} isLoading={true} />
+      <div className="container mx-auto p-6 space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+          <p className="text-muted-foreground">Manage your account settings</p>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Profile Information</CardTitle>
+            <CardDescription>
+              View and update your profile information and preferences
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex justify-center items-center py-8">
+              <Loader size={30} isLoading={true} />
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
