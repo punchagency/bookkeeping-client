@@ -7,6 +7,7 @@ import {
   LogOut,
   Users,
   Settings,
+  MessageCircle,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useUserStore } from "@/store/user-store";
@@ -51,6 +52,12 @@ const sidbarTopItems = [
     title: "Transactions",
     url: "/transactions",
     icon: BadgeDollarSign,
+  },
+
+  {
+    title: "Conversations",
+    url: "/conversations",
+    icon: MessageCircle,
   },
 ];
 
