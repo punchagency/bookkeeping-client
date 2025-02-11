@@ -40,6 +40,30 @@ export const VoiceRecorder = ({
 
   const recognitionRef = useRef<any>(null);
 
+  const saveConversationToDb = async () => {
+    console.log("Saving conversation to DB. Current messages:", messages);
+
+    if (!messages.length) {
+      toast.error("No messages to save");
+      return;
+    }
+
+    try {
+      const response = await axiosInstance.post("/conversations", {
+        messages,
+      });
+
+      if (response.status === 201) {
+        toast.success("Conversation saved successfully");
+      }
+
+      console.log("API Response:", response);
+    } catch (error) {
+      toast.error("Error saving conversation to db");
+      console.error("Error saving conversation to db:", error);
+    }
+  };
+
   const startSpeechRecognition = useCallback(() => {
     console.log("Starting speech recognition");
     if (recognitionRef.current) {
@@ -220,6 +244,8 @@ export const VoiceRecorder = ({
   ]);
 
   const cancelRecording = useCallback(() => {
+    console.log("Canceling recording. Messages before save:", messages);
+
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((track) => track.stop());
       mediaStreamRef.current = null;
@@ -252,8 +278,20 @@ export const VoiceRecorder = ({
       response: "",
       isListening: false,
     });
-    setMessages([]);
-  }, [onVoiceStateChange, stopMicrophone]);
+
+    // Save conversation after state updates if there are messages
+    if (messages.length > 0) {
+      setTimeout(async () => {
+        console.log("Messages right before saving:", messages);
+        await saveConversationToDb();
+        // Clear messages after saving
+        setMessages([]);
+      }, 0);
+    } else {
+      // If no messages, just clear the state
+      setMessages([]);
+    }
+  }, [messages, onVoiceStateChange, stopMicrophone]);
 
   useEffect(() => {
     console.log("Setting up speech recognition");
@@ -288,31 +326,32 @@ export const VoiceRecorder = ({
         const currentTranscript =
           event.results[event.results.length - 1][0].transcript;
 
-        setMessages((prev) => {
-          if (!prev.length || prev[prev.length - 1].role === "ai") {
-            return [
-              ...prev,
-              {
-                role: "user",
-                content: currentTranscript,
-                timestamp: new Date(),
-              },
-            ];
-          }
-
-          const lastMessage = prev[prev.length - 1];
-          return [
-            ...prev.slice(0, -1),
-            {
-              ...lastMessage,
-              content: currentTranscript,
-              timestamp: new Date(),
-            },
-          ];
-        });
-
         if (event.results[event.results.length - 1].isFinal) {
           console.log("Final transcript:", currentTranscript);
+          if (currentTranscript.trim()) {
+            console.log(
+              "Adding/Updating message with content:",
+              currentTranscript.trim()
+            );
+            setMessages((prev) => {
+              const newMessage = {
+                role: "user" as const,
+                content: currentTranscript.trim(),
+                timestamp: new Date(),
+              };
+
+              if (!prev.length || prev[prev.length - 1].role === "ai") {
+                const newMessages = [...prev, newMessage];
+                console.log("Updated messages array:", newMessages);
+                return newMessages;
+              }
+
+              const newMessages = [...prev.slice(0, -1), newMessage];
+              console.log("Updated messages array:", newMessages);
+              return newMessages;
+            });
+          }
+
           onVoiceStateChange({
             transcript: currentTranscript,
             isProcessing: true,
