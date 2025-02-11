@@ -26,6 +26,7 @@ import { Loader } from "@/components/loader";
 
 const allowedVoices = [
   { id: "alloy", name: "Alloy" },
+  { id: "verse", name: "Verse" },
   { id: "ash", name: "Ash" },
   { id: "coral", name: "Coral" },
   { id: "echo", name: "Echo" },
