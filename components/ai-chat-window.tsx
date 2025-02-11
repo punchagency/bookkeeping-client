@@ -1,6 +1,11 @@
 import { cn } from "@/lib/utils";
 import { Bot, User } from "lucide-react";
 import { useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import remarkGfm from "remark-gfm";
+import "katex/dist/katex.min.css";
 
 interface Message {
   role: "user" | "ai";
@@ -13,19 +18,15 @@ interface AIChatWindowProps {
   className?: string;
 }
 
-export function AIChatWindow({ messages, className }: AIChatWindowProps) {
+export function AIChatWindow({
+  messages,
+  className,
+}: Readonly<AIChatWindowProps>) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // console.log("Rendering chat window with messages:", messages);
-  useEffect(() => {
-    //  console.log("Messages updated:", messages);
-  }, [messages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
-
-  // console.log("Chat window messages:", messages); // Debug log
 
   return (
     <div
@@ -34,7 +35,7 @@ export function AIChatWindow({ messages, className }: AIChatWindowProps) {
         "bg-white dark:bg-gray-800",
         "rounded-xl shadow-xl border-2",
         "flex flex-col",
-        "z-[9999]", // Very high z-index to ensure visibility
+        "z-[9999]",
         "transition-all duration-300",
         messages.length === 0
           ? "opacity-0 pointer-events-none scale-95"
@@ -73,7 +74,21 @@ export function AIChatWindow({ messages, className }: AIChatWindowProps) {
                   : "bg-blue-500 text-white"
               )}
             >
-              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+              <div
+                className={cn(
+                  "text-sm [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+                  message.role === "ai"
+                    ? "[&_pre]:bg-gray-200 dark:[&_pre]:bg-gray-600 [&_pre]:p-2 [&_pre]:rounded-md [&_code]:text-sm [&_table]:w-full [&_table]:border-collapse [&_table_th]:border [&_table_th]:border-gray-300 dark:[&_table_th]:border-gray-600 [&_table_th]:px-2 [&_table_th]:py-1 [&_table_td]:border [&_table_td]:border-gray-300 dark:[&_table_td]:border-gray-600 [&_table_td]:px-2 [&_table_td]:py-1 [&_table]:my-2"
+                    : "text-white [&_a]:text-white [&_a]:underline [&_table]:w-full [&_table]:border-collapse [&_table_th]:border [&_table_th]:border-blue-400 [&_table_th]:px-2 [&_table_th]:py-1 [&_table_td]:border [&_table_td]:border-blue-400 [&_table_td]:px-2 [&_table_td]:py-1 [&_table]:my-2"
+                )}
+              >
+                <ReactMarkdown
+                  remarkPlugins={[remarkMath, remarkGfm]}
+                  rehypePlugins={[rehypeKatex]}
+                >
+                  {message.content}
+                </ReactMarkdown>
+              </div>
               <span className="text-[10px] opacity-50 mt-1 block">
                 {new Date(message.timestamp).toLocaleTimeString()}
               </span>
