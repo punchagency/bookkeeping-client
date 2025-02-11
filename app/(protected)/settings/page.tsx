@@ -26,13 +26,7 @@ const allowedVoices = [
 ];
 
 const Settings = () => {
-  const [selectedVoice, setSelectedVoice] = useState(() => {
-    return localStorage.getItem("aiVoice") || "alloy";
-  });
-
-  useEffect(() => {
-    localStorage.setItem("aiVoice", selectedVoice);
-  }, [selectedVoice]);
+  const [selectedVoice, setSelectedVoice] = useState();
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -49,7 +43,7 @@ const Settings = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Select value={selectedVoice} onValueChange={setSelectedVoice}>
+          <Select value={selectedVoice}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Select a voice" />
             </SelectTrigger>
