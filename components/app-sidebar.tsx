@@ -131,15 +131,16 @@ export function AppSidebar() {
             sideOffset={8}
           >
             {sidebarFooterItems.map((item) => (
-              <DropdownMenuItem key={item.title}>
-                <Link
-                  href={item.url}
-                  className="flex items-center gap-2 cursor-pointer"
-                >
+              <Link
+                href={item.url}
+                key={item.title}
+                className="flex items-center gap-2 cursor-pointer w-full"
+              >
+                <DropdownMenuItem className="w-full">
                   <item.icon className="h-4 w-4" />
                   <span>{item.title}</span>
-                </Link>
-              </DropdownMenuItem>
+                </DropdownMenuItem>
+              </Link>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>

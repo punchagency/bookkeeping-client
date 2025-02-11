@@ -96,8 +96,10 @@ const Settings = () => {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <Loader size={30} isLoading={true} />
+      <div className="container mx-auto p-6">
+        <div className="flex justify-center items-center">
+          <Loader size={30} isLoading={true} />
+        </div>
       </div>
     );
   }
