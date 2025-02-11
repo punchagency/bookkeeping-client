@@ -5,7 +5,9 @@ import { Button } from "./ui/button";
 import { VoiceRecorder } from "./ui/voice-recorder";
 import { cn } from "@/lib/utils";
 import { VoiceState } from "@/types/voice";
+
 export const VoiceCommandButton = () => {
+  const [isVoiceControlVisible, setIsVoiceControlVisible] = useState(false);
   const [voiceState, setVoiceState] = useState<VoiceState>({
     isListening: false,
     isProcessing: false,
@@ -16,6 +18,15 @@ export const VoiceCommandButton = () => {
 
   const handleVoiceStateChange = useCallback(
     (newState: Partial<VoiceState>) => {
+      // Only reset visibility when explicitly cancelled (all states cleared)
+      if (
+        newState.isListening === false &&
+        !newState.isProcessing &&
+        !newState.transcript &&
+        !newState.response
+      ) {
+        setIsVoiceControlVisible(false);
+      }
       setVoiceState((prev) => ({ ...prev, ...newState }));
     },
     []
@@ -28,18 +39,21 @@ export const VoiceCommandButton = () => {
         onVoiceStateChange={handleVoiceStateChange}
       />
 
-      <Button
-        className={cn(
-          "fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg transition-all duration-300",
-          voiceState.isListening || voiceState.isProcessing
-            ? "opacity-0 pointer-events-none translate-y-10"
-            : "opacity-100 translate-y-0"
-        )}
-        onClick={() => handleVoiceStateChange({ isListening: true })}
-        disabled={voiceState.isProcessing}
-      >
-        <Mic className="h-6 w-6" />
-      </Button>
+      {!isVoiceControlVisible && (
+        <Button
+          className={cn(
+            "fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg transition-all duration-300",
+            "opacity-100 translate-y-0"
+          )}
+          onClick={() => {
+            setIsVoiceControlVisible(true);
+            handleVoiceStateChange({ isListening: true });
+          }}
+          disabled={voiceState.isProcessing}
+        >
+          <Mic className="h-6 w-6" />
+        </Button>
+      )}
     </>
   );
 };
