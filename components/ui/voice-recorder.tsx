@@ -8,7 +8,7 @@ import { VoiceState } from "@/types/voice";
 import { toast } from "sonner";
 import { axiosInstance } from "@/app/config/axios";
 import { VoiceVisualizer } from "./voice-visualizer";
-import { AIChatWindow } from "@/components/ai-chat-window";
+import { AIChatWindow } from "../ai-chat-window";
 
 interface VoiceRecorderProps {
   voiceState: VoiceState;
@@ -24,6 +24,12 @@ export const VoiceRecorder = ({
   const [speechStatus, setSpeechStatus] = useState<
     "idle" | "connecting" | "listening" | "processing" | "stopped"
   >("idle");
+
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const dataChannelRef = useRef<RTCDataChannel | null>(null);
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+
   const [messages, setMessages] = useState<
     Array<{
       role: "user" | "ai";
@@ -32,79 +38,39 @@ export const VoiceRecorder = ({
     }>
   >([]);
 
-  const [recognition, setRecognition] = useState<any>(null);
+  const recognitionRef = useRef<any>(null);
 
-  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
-  const dataChannelRef = useRef<RTCDataChannel | null>(null);
-  const audioElementRef = useRef<HTMLAudioElement | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-
-  useEffect(() => {
-    if ("webkitSpeechRecognition" in window) {
-      const recognition = new (window as any).webkitSpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-
-      recognition.onresult = (event: any) => {
-        const transcript = Array.from(event.results)
-          .map((result: any) => result[0])
-          .map((result) => result.transcript)
-          .join("");
-
-        const isFinal = event.results[event.results.length - 1].isFinal;
-
-        if (isFinal) {
-          // Update messages for the chat window
-          setMessages((prev) => [
-            ...prev,
-            {
-              role: "user",
-              content: transcript,
-              timestamp: new Date(),
-            },
-          ]);
-
-          // Update voice state to show the transcript
-          onVoiceStateChange({
-            transcript: transcript,
-            isProcessing: true,
-          });
-        } else {
-          // Update voice state with interim results
-          onVoiceStateChange({
-            transcript: transcript,
-            isProcessing: false,
-          });
-        }
-      };
-
-      recognition.onstart = () => {
+  const startSpeechRecognition = useCallback(() => {
+    console.log("Starting speech recognition");
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.start();
         console.log("Speech recognition started");
-        setSpeechStatus("listening");
-      };
-
-      recognition.onerror = (event: any) => {
-        console.error("Speech recognition error:", event.error);
-        setSpeechStatus("stopped");
-      };
-
-      recognition.onend = () => {
-        console.log("Speech recognition ended");
-        setSpeechStatus("stopped");
-      };
-
-      setRecognition(recognition);
+      } catch (error) {
+        console.error("Error starting speech recognition:", error);
+      }
     }
-  }, [onVoiceStateChange]);
-  useEffect(() => {
-    console.log("Current messages state:", messages);
-  }, [messages]);
+  }, []);
 
   const stopMicrophone = useCallback(() => {
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((track) => {
         track.enabled = false;
       });
+    }
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+        // Prevent auto-restart by removing the onend handler temporarily
+        const originalOnEnd = recognitionRef.current.onend;
+        recognitionRef.current.onend = () => {
+          console.log("Speech recognition stopped by user");
+          // Restore the original onend handler for next time
+          recognitionRef.current.onend = originalOnEnd;
+        };
+      } catch (error) {
+        console.error("Error stopping speech recognition:", error);
+      }
     }
     setIsMuted(true);
     setSpeechStatus("stopped");
@@ -117,10 +83,11 @@ export const VoiceRecorder = ({
       });
       setIsMuted(false);
       setSpeechStatus("listening");
+      startSpeechRecognition();
       return true;
     }
     return false;
-  }, []);
+  }, [startSpeechRecognition]);
 
   const initializeWebRTC = async () => {
     try {
@@ -128,32 +95,19 @@ export const VoiceRecorder = ({
       const response = await axiosInstance.post("/ai/session");
       const EPHEMERAL_KEY = response.data.data.client_secret.value;
 
-      const pc = new RTCPeerConnection({
-        iceServers: [
-          {
-            urls: "stun:stun.l.google.com:19302",
-          },
-        ],
-      });
+      const pc = new RTCPeerConnection();
       peerConnectionRef.current = pc;
 
       const audioEl = new Audio();
       audioEl.autoplay = true;
-      audioEl.volume = 1.0;
       audioElementRef.current = audioEl;
 
       pc.ontrack = (e) => {
-        //console.log("Received audio track", e.streams[0]);
         audioEl.srcObject = e.streams[0];
-        audioEl.play().catch((e) => console.error("Audio playback error:", e));
       };
 
       const ms = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
+        audio: true,
       });
 
       mediaStreamRef.current = ms;
@@ -184,12 +138,7 @@ export const VoiceRecorder = ({
                     response: response.transcript,
                   });
                 }
-
                 break;
-
-              default:
-                console.log(response);
-                console.log("Unhandled response type:", response.type);
             }
           } catch (error) {
             console.error("Error parsing AI response:", error);
@@ -197,14 +146,6 @@ export const VoiceRecorder = ({
           }
         }
       });
-
-      pc.oniceconnectionstatechange = () => {
-        // console.log("ICE Connection State:", pc.iceConnectionState);
-      };
-
-      pc.onconnectionstatechange = () => {
-        // console.log("Connection State:", pc.connectionState);
-      };
 
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
@@ -230,6 +171,7 @@ export const VoiceRecorder = ({
       setSpeechStatus("listening");
       setIsMuted(false);
       onVoiceStateChange({ isListening: true });
+      startSpeechRecognition();
       toast.success("Voice service connected!");
     } catch (error) {
       console.error("Error initializing WebRTC:", error);
@@ -244,9 +186,12 @@ export const VoiceRecorder = ({
     try {
       if (!isMuted) {
         stopMicrophone();
-        if (recognition) {
-          recognition.stop();
-        }
+        onVoiceStateChange({ isProcessing: false });
+        return;
+      }
+
+      if (startMicrophone()) {
+        onVoiceStateChange({ isListening: true });
         return;
       }
 
@@ -259,16 +204,20 @@ export const VoiceRecorder = ({
       }
 
       await initializeWebRTC();
-      if (recognition) {
-        recognition.start();
-      }
       setIsMuted(false);
       setSpeechStatus("listening");
+      onVoiceStateChange({ isListening: true });
     } catch (error) {
       console.error("Error toggling microphone:", error);
       toast.error("Failed to access microphone");
     }
-  }, [hasPermission, isMuted, initializeWebRTC, recognition]);
+  }, [
+    hasPermission,
+    isMuted,
+    initializeWebRTC,
+    startMicrophone,
+    onVoiceStateChange,
+  ]);
 
   const cancelRecording = useCallback(() => {
     if (mediaStreamRef.current) {
@@ -286,15 +235,110 @@ export const VoiceRecorder = ({
     if (audioElementRef.current) {
       audioElementRef.current.srcObject = null;
     }
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (error) {
+        console.error("Error stopping speech recognition:", error);
+      }
+    }
 
     stopMicrophone();
+    setIsMuted(true);
+    setSpeechStatus("idle");
     onVoiceStateChange({
       transcript: "",
       isProcessing: false,
       response: "",
       isListening: false,
     });
+    setMessages([]);
   }, [onVoiceStateChange, stopMicrophone]);
+
+  useEffect(() => {
+    console.log("Setting up speech recognition");
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+
+    if (SpeechRecognition) {
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = true;
+      recognitionRef.current.interimResults = true;
+      recognitionRef.current.lang = "en-US";
+
+      recognitionRef.current.onstart = () => {
+        console.log("Speech recognition service has started");
+      };
+
+      recognitionRef.current.onend = () => {
+        console.log("Speech recognition service disconnected");
+        console.log("Restarting speech recognition");
+        setTimeout(() => {
+          try {
+            recognitionRef.current?.start();
+          } catch (error) {
+            console.error("Error restarting speech recognition:", error);
+          }
+        }, 100);
+      };
+
+      recognitionRef.current.onresult = (event: any) => {
+        console.log("Speech recognition result received");
+        const currentTranscript =
+          event.results[event.results.length - 1][0].transcript;
+
+        setMessages((prev) => {
+          if (!prev.length || prev[prev.length - 1].role === "ai") {
+            return [
+              ...prev,
+              {
+                role: "user",
+                content: currentTranscript,
+                timestamp: new Date(),
+              },
+            ];
+          }
+
+          const lastMessage = prev[prev.length - 1];
+          return [
+            ...prev.slice(0, -1),
+            {
+              ...lastMessage,
+              content: currentTranscript,
+              timestamp: new Date(),
+            },
+          ];
+        });
+
+        if (event.results[event.results.length - 1].isFinal) {
+          console.log("Final transcript:", currentTranscript);
+          onVoiceStateChange({
+            transcript: currentTranscript,
+            isProcessing: true,
+          });
+        }
+      };
+
+      recognitionRef.current.onerror = (event: any) => {
+        console.error("Speech recognition error:", event.error);
+        toast.error(`Speech recognition error: ${event.error}`);
+        setSpeechStatus("idle");
+      };
+    } else {
+      toast.error("Speech recognition not supported in this browser");
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (error) {
+          console.error("Error stopping speech recognition:", error);
+        }
+      }
+    };
+  }, [onVoiceStateChange]);
 
   useEffect(() => {
     return () => {
@@ -339,35 +383,15 @@ export const VoiceRecorder = ({
             </div>
           )}
 
-          {voiceState.transcript && (
-            <div className="bg-background/95 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-border/50 max-w-md">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                <p className="text-sm font-medium text-muted-foreground">
-                  {speechStatus === "idle" && "Ready"}
-                  {speechStatus === "connecting" && "Connecting"}
-                  {speechStatus === "listening" && "Listening"}
-                  {speechStatus === "processing" && "Processing"}
-                  {speechStatus === "stopped" && "Stopped"}
-                </p>
-              </div>
-              <p className="text-base leading-relaxed">
-                {voiceState.transcript || "Waiting for speech..."}
-              </p>
-            </div>
-          )}
-
           <div className="bg-background/95 backdrop-blur-sm px-6 py-2 rounded-full shadow-lg border border-border/50 flex items-center gap-6">
             <Button
               variant="secondary"
               size="lg"
               className="h-10 w-10 rounded-full"
               onClick={toggleMicrophone}
-              disabled={
-                voiceState.isProcessing || speechStatus === "connecting"
-              }
+              disabled={speechStatus === "connecting"}
             >
-              {voiceState.isProcessing || speechStatus === "connecting" ? (
+              {speechStatus === "connecting" ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : isMuted ? (
                 <MicOff className="h-5 w-5" />
@@ -380,7 +404,6 @@ export const VoiceRecorder = ({
               size="lg"
               className="h-10 w-10 rounded-full"
               onClick={cancelRecording}
-              disabled={voiceState.isProcessing}
             >
               <X className="h-5 w-5" />
             </Button>
