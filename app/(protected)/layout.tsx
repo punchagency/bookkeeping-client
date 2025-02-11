@@ -2,7 +2,6 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { VoiceCommandButton } from "@/components/voice-command-button";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 
-
 export default function Layout({
   children,
 }: Readonly<{
@@ -12,10 +11,10 @@ export default function Layout({
     <SidebarProvider>
       <AppSidebar />
 
-      <main className="p-2">
+      <main>
         <SidebarTrigger />
         {children}
-        <VoiceCommandButton/>
+        <VoiceCommandButton />
       </main>
     </SidebarProvider>
   );
