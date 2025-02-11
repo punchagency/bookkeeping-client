@@ -1,5 +1,9 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
+import { toast } from "sonner";
+import { AxiosError } from "axios";
 import { useState, useEffect } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Select,
   SelectContent,
@@ -17,10 +21,8 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useUserStore } from "@/store/user-store";
-import { toast } from "sonner";
 import { axiosInstance } from "@/app/config/axios";
-import { useMutation } from "@tanstack/react-query";
-import { AxiosError } from "axios";
+import { Loader } from "@/components/loader";
 
 const allowedVoices = [
   { id: "alloy", name: "Alloy" },
@@ -38,23 +40,41 @@ const Settings = () => {
   const user = useUserStore((state) => state.user);
   const setUser = useUserStore((state) => state.setUser);
   const [selectedVoice, setSelectedVoice] = useState<string>();
-  const [fullName, setFullName] = useState(user?.fullName || "");
+  const [fullName, setFullName] = useState("");
+
+  const {
+    data: settings,
+    isLoading,
+    refetch,
+  } = useQuery({
+    queryKey: ["settings"],
+    queryFn: async () => {
+      const response = await axiosInstance.get("/settings");
+      return response.data.data;
+    },
+  });
 
   useEffect(() => {
-    if (user?.fullName) {
-      setFullName(user.fullName);
+    if (settings) {
+      setFullName(settings.fullName);
+      setSelectedVoice(settings.voice);
+      setUser({
+        _id: user?._id || "",
+        email: settings.email,
+        fullName: settings.fullName,
+        avatar: settings.avatar,
+      });
     }
-  }, [user?.fullName]);
+  }, [settings, setUser, user?._id]);
 
   const updateProfileMutation = useMutation({
-    mutationFn: async (data: { fullName: string }) => {
-      const response = await axiosInstance.patch("/user/profile", data);
+    mutationFn: async (data: { fullName: string; voice: string }) => {
+      const response = await axiosInstance.put("/settings", data);
       return response.data;
     },
-    onSuccess: (response) => {
-      if (user) {
-        setUser({ ...user, fullName: response.data.fullName });
-      }
+    onSuccess: async (response) => {
+      // Refetch settings to get the updated data including new avatar
+      await refetch();
       toast.success("Profile updated successfully!");
     },
     onError: (error: AxiosError<{ message: string }>) => {
@@ -68,14 +88,19 @@ const Settings = () => {
     if (!fullName.trim()) {
       return toast.error("Name cannot be empty");
     }
-    updateProfileMutation.mutate({ fullName });
+    if (!selectedVoice) {
+      return toast.error("Please select a voice");
+    }
+    updateProfileMutation.mutate({ fullName, voice: selectedVoice });
   };
 
-  const handleVoiceChange = (value: string) => {
-    setSelectedVoice(value);
-    // TODO: Implement voice preference saving to backend
-    toast.success(`Voice set to: ${value}`);
-  };
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader size={30} isLoading={true} />
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -88,21 +113,17 @@ const Settings = () => {
         <CardHeader>
           <CardTitle>Profile Information</CardTitle>
           <CardDescription>
-            View and update your profile information
+            View and update your profile information and preferences
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {user?.avatar && (
+          {settings?.avatar && (
             <div className="flex items-center space-x-4">
               <img
-                src={user.avatar}
-                alt={user.fullName}
-                className="h-20 w-20 rounded-full"
+                src={settings.avatar}
+                alt={settings.fullName}
+                className="h-14 w-14 rounded-full"
               />
-              <p className="text-sm text-muted-foreground">
-                Profile picture can only be updated through your account
-                provider
-              </p>
             </div>
           )}
 
@@ -124,42 +145,40 @@ const Settings = () => {
             </label>
             <Input
               id="email"
-              value={user?.email || ""}
+              value={settings?.email || ""}
               readOnly
               disabled
               className="bg-muted"
             />
           </div>
 
+          <div className="space-y-2">
+            <label htmlFor="voice" className="text-sm font-medium">
+              AI Assistant Voice
+            </label>
+            <Select value={selectedVoice} onValueChange={setSelectedVoice}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a voice" />
+              </SelectTrigger>
+              <SelectContent>
+                {allowedVoices.map((voice) => (
+                  <SelectItem key={voice.id} value={voice.id}>
+                    {voice.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-muted-foreground">
+              This voice will be used when the AI assistant speaks to you
+            </p>
+          </div>
+
           <Button
             onClick={handleUpdateProfile}
             disabled={updateProfileMutation.isPending}
           >
-            {updateProfileMutation.isPending ? "Updating..." : "Update Profile"}
+            {updateProfileMutation.isPending ? "Updating..." : "Update"}
           </Button>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>AI Voice Settings</CardTitle>
-          <CardDescription>
-            Choose the voice that ChatGPT will use when speaking to you
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Select value={selectedVoice} onValueChange={handleVoiceChange}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select a voice" />
-            </SelectTrigger>
-            <SelectContent>
-              {allowedVoices.map((voice) => (
-                <SelectItem key={voice.id} value={voice.id}>
-                  {voice.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </CardContent>
       </Card>
     </div>
