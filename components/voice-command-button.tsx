@@ -18,7 +18,6 @@ export const VoiceCommandButton = () => {
 
   const handleVoiceStateChange = useCallback(
     (newState: Partial<VoiceState>) => {
-      // Only reset visibility when explicitly cancelled (all states cleared)
       if (
         newState.isListening === false &&
         !newState.isProcessing &&
