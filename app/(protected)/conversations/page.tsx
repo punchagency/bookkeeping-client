@@ -1,7 +1,13 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { formatDistanceToNow } from "date-fns";
+import {
+  formatDistanceToNow,
+  subDays,
+  subWeeks,
+  subMonths,
+  isAfter,
+} from "date-fns";
 import {
   ChevronRight,
   MessageSquare,
@@ -9,6 +15,8 @@ import {
   ArrowLeft,
   Bot,
   User,
+  Filter,
+  Check,
 } from "lucide-react";
 import { axiosInstance } from "@/app/config/axios";
 import { Loader } from "@/components/loader";
@@ -21,6 +29,11 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
@@ -53,11 +66,19 @@ interface ApiResponse {
   data: Conversation[] | Conversation;
 }
 
+const sortOptions = [
+  { label: "Newest first", value: "newest" },
+  { label: "Oldest first", value: "oldest" },
+] as const;
+
+type SortOption = typeof sortOptions[number]["value"];
+
 const ConversationsPage = () => {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedConversation, setSelectedConversation] =
     useState<Conversation | null>(null);
+  const [sortOrder, setSortOrder] = useState<SortOption>("newest");
 
   const { data, isLoading } = useQuery<ApiResponse>({
     queryKey: ["conversations"],
@@ -104,13 +125,23 @@ const ConversationsPage = () => {
     ? [data.data]
     : [];
 
-  // Filter conversations based on search query
-  const filteredConversations = conversations.filter(
-    (conv) =>
-      conv.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      conv.messages.some((msg) =>
-        msg.content.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+  const sortConversations = (conversations: Conversation[]) => {
+    return [...conversations].sort((a, b) => {
+      const dateA = new Date(a.updatedAt).getTime();
+      const dateB = new Date(b.updatedAt).getTime();
+      return sortOrder === "newest" ? dateB - dateA : dateA - dateB;
+    });
+  };
+
+  // Update the filtered conversations to use the new sort function
+  const filteredConversations = sortConversations(
+    conversations.filter(
+      (conv) =>
+        conv.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        conv.messages.some((msg) =>
+          msg.content.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+    )
   );
 
   const renderMessage = (message: Message) => {
@@ -209,15 +240,51 @@ const ConversationsPage = () => {
                   Your chat history with the AI financial assistant
                 </p>
               </div>
-              <div className="w-96">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search conversations..."
-                    className="pl-10 bg-background/50 backdrop-blur-sm"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
+              <div className="flex items-center gap-3">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="flex items-center gap-2"
+                    >
+                      <Filter className="h-4 w-4" />
+                      {sortOrder === "newest" ? "Newest first" : "Oldest first"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-48" align="end">
+                    <div className="space-y-1">
+                      {sortOptions.map((option) => (
+                        <Button
+                          key={option.value}
+                          variant="ghost"
+                          className="w-full justify-start font-normal"
+                          onClick={() => setSortOrder(option.value)}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              sortOrder === option.value
+                                ? "opacity-100"
+                                : "opacity-0"
+                            )}
+                          />
+                          {option.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                <div className="w-96">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search conversations..."
+                      className="pl-10 bg-background/50 backdrop-blur-sm"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
