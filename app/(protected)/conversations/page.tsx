@@ -48,6 +48,11 @@ interface Message {
   timestamp: string;
 }
 
+interface MessageWithConversation extends Message {
+  conversationId: string;
+  conversationTitle: string;
+}
+
 interface Conversation {
   _id: string;
   userId: string;
@@ -66,18 +71,20 @@ interface ApiResponse {
   data: Conversation[] | Conversation;
 }
 
+interface GroupedMessages {
+  [key: string]: MessageWithConversation[];
+}
+
 const sortOptions = [
   { label: "Newest first", value: "newest" },
   { label: "Oldest first", value: "oldest" },
 ] as const;
 
-type SortOption = typeof sortOptions[number]["value"];
+type SortOption = (typeof sortOptions)[number]["value"];
 
 const ConversationsPage = () => {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedConversation, setSelectedConversation] =
-    useState<Conversation | null>(null);
   const [sortOrder, setSortOrder] = useState<SortOption>("newest");
 
   const { data, isLoading } = useQuery<ApiResponse>({
@@ -89,33 +96,8 @@ const ConversationsPage = () => {
     },
   });
 
-  const getLastMessage = (messages: Message[]) => {
-    if (!messages || messages.length === 0) return "No messages";
-    const lastMessage = messages[messages.length - 1];
-    const content = lastMessage.content.trim();
-
-    // Remove markdown syntax for preview
-    const cleanContent = content
-      .replace(/[#*`_~\[\]]/g, "") // Remove markdown symbols
-      .replace(/\n/g, " ") // Replace newlines with spaces
-      .trim();
-
-    // Truncate to 100 characters
-    return cleanContent.length > 100
-      ? `${cleanContent.slice(0, 100)}...`
-      : cleanContent;
-  };
-
   const formatTitle = (title: string) => {
     return title.replace("conv_", "Conversation ").slice(0, 30);
-  };
-
-  const handleConversationClick = (conversation: Conversation) => {
-    setSelectedConversation(conversation);
-  };
-
-  const handleBack = () => {
-    setSelectedConversation(null);
   };
 
   // Convert the data to an array if it's a single conversation
@@ -125,33 +107,56 @@ const ConversationsPage = () => {
     ? [data.data]
     : [];
 
-  const sortConversations = (conversations: Conversation[]) => {
-    return [...conversations].sort((a, b) => {
-      const dateA = new Date(a.updatedAt).getTime();
-      const dateB = new Date(b.updatedAt).getTime();
-      return sortOrder === "newest" ? dateB - dateA : dateA - dateB;
-    });
-  };
-
-  // Update the filtered conversations to use the new sort function
-  const filteredConversations = sortConversations(
-    conversations.filter(
-      (conv) =>
-        conv.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        conv.messages.some((msg) =>
-          msg.content.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-    )
+  // Get all messages from all conversations
+  const allMessages = conversations.flatMap((conv) =>
+    conv.messages.map((msg) => ({
+      ...msg,
+      conversationId: conv._id,
+      conversationTitle: conv.title,
+    }))
   );
 
-  const renderMessage = (message: Message) => {
+  // Group messages by date
+  const groupMessagesByDate = (messages: MessageWithConversation[]) => {
+    const groups: GroupedMessages = {};
+
+    messages.forEach((message) => {
+      const date = new Date(message.timestamp);
+      const dateKey = date.toLocaleDateString();
+
+      if (!groups[dateKey]) {
+        groups[dateKey] = [];
+      }
+      groups[dateKey].push(message);
+    });
+
+    // Sort messages within each group
+    Object.keys(groups).forEach((date) => {
+      groups[date].sort((a, b) => {
+        const dateA = new Date(a.timestamp).getTime();
+        const dateB = new Date(b.timestamp).getTime();
+        return sortOrder === "newest" ? dateB - dateA : dateA - dateB;
+      });
+    });
+
+    return groups;
+  };
+
+  const groupedMessages = groupMessagesByDate(allMessages);
+  const sortedDates = Object.keys(groupedMessages).sort((a, b) => {
+    const dateA = new Date(a).getTime();
+    const dateB = new Date(b).getTime();
+    return sortOrder === "newest" ? dateB - dateA : dateA - dateB;
+  });
+
+  const renderMessage = (message: MessageWithConversation) => {
     const isAI = message.role === "ai";
     return (
       <div
-        key={message.timestamp}
+        key={`${message.conversationId}-${message.timestamp}`}
         className={cn(
-          "flex w-full py-4",
-          isAI ? "bg-accent/30" : "bg-background"
+          "flex w-full py-4 hover:bg-accent/10 group transition-colors",
+          isAI ? "bg-accent/5" : "bg-background"
         )}
       >
         <div className="container max-w-5xl mx-auto px-6">
@@ -169,9 +174,17 @@ const ConversationsPage = () => {
               )}
             </div>
             <div className="flex-1 space-y-1">
-              <p className="text-sm font-medium text-muted-foreground">
-                {isAI ? "AI Assistant" : "You"}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium">
+                  {isAI ? "AI Assistant" : "You"}
+                </p>
+                <span className="text-xs text-muted-foreground">
+                  {new Date(message.timestamp).toLocaleTimeString()}
+                </span>
+                <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                  from {formatTitle(message.conversationTitle)}
+                </span>
+              </div>
               <div
                 className={cn(
                   "prose prose-sm max-w-none dark:prose-invert",
@@ -189,11 +202,6 @@ const ConversationsPage = () => {
                 </ReactMarkdown>
               </div>
             </div>
-            <div className="text-xs text-muted-foreground whitespace-nowrap">
-              {formatDistanceToNow(new Date(message.timestamp), {
-                addSuffix: true,
-              })}
-            </div>
           </div>
         </div>
       </div>
@@ -203,165 +211,129 @@ const ConversationsPage = () => {
   return (
     <div className="min-h-screen bg-background">
       <div className="container max-w-5xl mx-auto p-6 space-y-8">
-        {selectedConversation ? (
-          <div className="relative">
-            <div className="sticky top-4 z-10 bg-background/80 backdrop-blur-sm border rounded-lg mb-6">
-              <div className="p-4 flex items-center gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b sticky top-0 bg-background/80 backdrop-blur-sm z-10">
+          <div className="flex-1">
+            <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+              Conversations
+            </h1>
+            <p className="text-muted-foreground mt-2">
+              Your chat history with the AI financial assistant
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Popover>
+              <PopoverTrigger asChild>
                 <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleBack}
-                  className="shrink-0"
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
                 >
-                  <ArrowLeft className="h-5 w-5" />
+                  <Filter className="h-4 w-4" />
+                  {sortOrder === "newest" ? "Newest first" : "Oldest first"}
                 </Button>
-                <div>
-                  <h1 className="text-2xl font-semibold truncate">
-                    {formatTitle(selectedConversation.title)}
-                  </h1>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedConversation.messages.length} messages
-                  </p>
+              </PopoverTrigger>
+              <PopoverContent className="w-48" align="end">
+                <div className="space-y-1">
+                  {sortOptions.map((option) => (
+                    <Button
+                      key={option.value}
+                      variant="ghost"
+                      className="w-full justify-start font-normal"
+                      onClick={() => setSortOrder(option.value)}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          sortOrder === option.value
+                            ? "opacity-100"
+                            : "opacity-0"
+                        )}
+                      />
+                      {option.label}
+                    </Button>
+                  ))}
                 </div>
+              </PopoverContent>
+            </Popover>
+            <div className="w-96">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search messages..."
+                  className="pl-10 bg-background/50 backdrop-blur-sm"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
               </div>
-            </div>
-            <div className="divide-y divide-border/50 rounded-lg border bg-background/50 backdrop-blur-sm">
-              {selectedConversation.messages.map(renderMessage)}
             </div>
           </div>
-        ) : (
-          <>
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b">
-              <div className="flex-1">
-                <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                  Conversations
-                </h1>
-                <p className="text-muted-foreground mt-2">
-                  Your chat history with the AI financial assistant
-                </p>
+        </div>
+
+        {isLoading ? (
+          <div className="flex justify-center items-center py-16">
+            <Loader size={30} isLoading={true} />
+          </div>
+        ) : allMessages.length === 0 ? (
+          <Card className="py-16 border-dashed">
+            <CardContent className="flex flex-col items-center justify-center space-y-4">
+              <div className="p-4 rounded-full bg-primary/5">
+                <MessageSquare className="h-8 w-8 text-primary/50" />
               </div>
-              <div className="flex items-center gap-3">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="flex items-center gap-2"
-                    >
-                      <Filter className="h-4 w-4" />
-                      {sortOrder === "newest" ? "Newest first" : "Oldest first"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-48" align="end">
-                    <div className="space-y-1">
-                      {sortOptions.map((option) => (
-                        <Button
-                          key={option.value}
-                          variant="ghost"
-                          className="w-full justify-start font-normal"
-                          onClick={() => setSortOrder(option.value)}
-                        >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4",
-                              sortOrder === option.value
-                                ? "opacity-100"
-                                : "opacity-0"
-                            )}
-                          />
-                          {option.label}
-                        </Button>
-                      ))}
+              <div className="text-center space-y-2">
+                <CardTitle className="text-xl text-muted-foreground">
+                  {searchQuery
+                    ? "No messages found matching your search"
+                    : "No messages yet"}
+                </CardTitle>
+                <CardDescription>
+                  {searchQuery
+                    ? "Try adjusting your search terms"
+                    : "Start chatting with the AI assistant to see your messages here"}
+                </CardDescription>
+              </div>
+              {searchQuery && (
+                <Button
+                  variant="outline"
+                  onClick={() => setSearchQuery("")}
+                  className="mt-4"
+                >
+                  Clear search
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-8">
+            {sortedDates.map((date) => {
+              const messages = groupedMessages[date].filter((msg) =>
+                msg.content.toLowerCase().includes(searchQuery.toLowerCase())
+              );
+
+              if (messages.length === 0) return null;
+
+              return (
+                <div key={date} className="space-y-2">
+                  <div className="sticky top-24 bg-background/80 backdrop-blur-sm z-10 py-2">
+                    <div className="flex items-center gap-4">
+                      <div className="h-px flex-1 bg-border" />
+                      <p className="text-sm font-medium text-muted-foreground">
+                        {new Date(date).toLocaleDateString(undefined, {
+                          weekday: "long",
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })}
+                      </p>
+                      <div className="h-px flex-1 bg-border" />
                     </div>
-                  </PopoverContent>
-                </Popover>
-                <div className="w-96">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search conversations..."
-                      className="pl-10 bg-background/50 backdrop-blur-sm"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+                  </div>
+                  <div className="divide-y divide-border/50 rounded-lg border bg-background/50 backdrop-blur-sm">
+                    {messages.map(renderMessage)}
                   </div>
                 </div>
-              </div>
-            </div>
-
-            {isLoading ? (
-              <div className="flex justify-center items-center py-16">
-                <Loader size={30} isLoading={true} />
-              </div>
-            ) : (
-              <div className="grid gap-4">
-                {filteredConversations.length === 0 ? (
-                  <Card className="py-16 border-dashed">
-                    <CardContent className="flex flex-col items-center justify-center space-y-4">
-                      <div className="p-4 rounded-full bg-primary/5">
-                        <MessageSquare className="h-8 w-8 text-primary/50" />
-                      </div>
-                      <div className="text-center space-y-2">
-                        <CardTitle className="text-xl text-muted-foreground">
-                          {searchQuery
-                            ? "No conversations found matching your search"
-                            : "No conversations yet"}
-                        </CardTitle>
-                        <CardDescription>
-                          {searchQuery
-                            ? "Try adjusting your search terms"
-                            : "Start chatting with the AI assistant to see your conversations here"}
-                        </CardDescription>
-                      </div>
-                      {searchQuery && (
-                        <Button
-                          variant="outline"
-                          onClick={() => setSearchQuery("")}
-                          className="mt-4"
-                        >
-                          Clear search
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="grid gap-4">
-                    {filteredConversations.map((conversation) => (
-                      <Card
-                        key={conversation._id}
-                        className="cursor-pointer hover:bg-accent/50 transition-all duration-300 hover:shadow-md group"
-                        onClick={() => handleConversationClick(conversation)}
-                      >
-                        <CardHeader>
-                          <div className="flex items-center justify-between">
-                            <div className="space-y-1 flex-1 min-w-0">
-                              <CardTitle className="text-lg font-semibold truncate group-hover:text-primary transition-colors">
-                                {formatTitle(conversation.title)}
-                              </CardTitle>
-                              <CardDescription className="line-clamp-2 text-sm text-muted-foreground/80 group-hover:text-muted-foreground transition-colors">
-                                {getLastMessage(conversation.messages)}
-                              </CardDescription>
-                            </div>
-                            <div className="flex items-center gap-3 pl-4">
-                              <span className="text-sm text-muted-foreground whitespace-nowrap">
-                                {formatDistanceToNow(
-                                  new Date(conversation.updatedAt),
-                                  {
-                                    addSuffix: true,
-                                  }
-                                )}
-                              </span>
-                              <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-primary group-hover:transform group-hover:translate-x-1 transition-all" />
-                            </div>
-                          </div>
-                        </CardHeader>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>
