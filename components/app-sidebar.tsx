@@ -36,12 +36,6 @@ const sidbarTopItems = [
     url: "/dashboard",
     icon: Gauge,
   },
-
-  {
-    title: "Users",
-    url: "/users",
-    icon: Users,
-  },
   {
     title: "Statements",
     url: "/statements",
