@@ -1,30 +1,14 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import {
-  formatDistanceToNow,
-  subDays,
-  subWeeks,
-  subMonths,
-  isAfter,
-} from "date-fns";
-import {
-  ChevronRight,
-  MessageSquare,
-  Search,
-  ArrowLeft,
-  Bot,
-  User,
-  Filter,
-  Check,
-} from "lucide-react";
+
+import { MessageSquare, Search, Bot, User, Filter, Check } from "lucide-react";
 import { axiosInstance } from "@/app/config/axios";
 import { Loader } from "@/components/loader";
 import {
   Card,
   CardContent,
   CardDescription,
-  CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -34,7 +18,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
@@ -85,7 +69,7 @@ type SortOption = (typeof sortOptions)[number]["value"];
 const ConversationsPage = () => {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortOrder, setSortOrder] = useState<SortOption>("newest");
+  const [sortOrder, setSortOrder] = useState<SortOption>("oldest");
 
   const { data, isLoading } = useQuery<ApiResponse>({
     queryKey: ["conversations"],
@@ -96,18 +80,25 @@ const ConversationsPage = () => {
     },
   });
 
+  useEffect(() => {
+    if (!isLoading && data) {
+      window.scrollTo({
+        top: document.documentElement.scrollHeight,
+        behavior: "smooth",
+      });
+    }
+  }, [data, isLoading, searchQuery]);
+
   const formatTitle = (title: string) => {
     return title.replace("conv_", "Conversation ").slice(0, 30);
   };
 
-  // Convert the data to an array if it's a single conversation
   const conversations = Array.isArray(data?.data)
     ? data.data
     : data?.data
     ? [data.data]
     : [];
 
-  // Get all messages from all conversations
   const allMessages = conversations.flatMap((conv) =>
     conv.messages.map((msg) => ({
       ...msg,
@@ -116,7 +107,6 @@ const ConversationsPage = () => {
     }))
   );
 
-  // Group messages by date
   const groupMessagesByDate = (messages: MessageWithConversation[]) => {
     const groups: GroupedMessages = {};
 
@@ -130,7 +120,6 @@ const ConversationsPage = () => {
       groups[dateKey].push(message);
     });
 
-    // Sort messages within each group
     Object.keys(groups).forEach((date) => {
       groups[date].sort((a, b) => {
         const dateA = new Date(a.timestamp).getTime();
