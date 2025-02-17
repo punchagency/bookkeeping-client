@@ -73,7 +73,7 @@ export const VoiceVisualizer = ({ isListening }: VoiceVisualizerProps) => {
           }
 
           ctx.strokeStyle = "hsl(221, 83%, 53%)";
-          ctx.lineWidth = 2;
+          ctx.lineWidth = 1;
           ctx.stroke();
 
           phase += 0.05;
@@ -99,7 +99,7 @@ export const VoiceVisualizer = ({ isListening }: VoiceVisualizerProps) => {
   }, [isListening]);
 
   return (
-    <div className="w-full max-w-2xl mx-auto h-40">
+    <div className="w-60 max-w-2xl mx-auto h-12">
       <canvas ref={canvasRef} className="w-full h-full rounded-md" />
     </div>
   );
