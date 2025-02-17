@@ -1,4 +1,3 @@
-
 "use client";
 import dayjs from "dayjs";
 import { DateRange } from "react-day-picker";
@@ -33,7 +32,6 @@ import {
 } from "@/components/ui/select";
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 
-
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -50,6 +48,14 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Legend,
+  Tooltip,
+} from "recharts";
 
 interface Transaction {
   category: string;
@@ -99,6 +105,11 @@ interface TransactionResponse {
       expenses: number;
       netChange: number;
     };
+
+    timeRangeExpenses: {
+      breakdown: { category: string; amount: number; percentage: number }[];
+      total: number;
+    } | null;
   };
 }
 
@@ -110,6 +121,7 @@ const Transactions = () => {
     from: addDays(new Date(), -30),
     to: new Date(),
   });
+  const [timeRange, setTimeRange] = useState("30");
 
   useEffect(() => {
     setSearchTerm("");
@@ -121,20 +133,22 @@ const Transactions = () => {
   }, [currentPage]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["transactions", currentPage],
+    queryKey: ["transactions", currentPage, timeRange],
     queryFn: async () => {
       const response = await axiosInstance.get("/bank/transactions", {
         params: {
           currentPage,
           perPage: 25,
+          days: timeRange,
         },
       });
       return response.data as TransactionResponse;
     },
   });
 
-  const pagination = data?.data.pagination;
   const transactions = data?.data.transactions;
+  const pagination = data?.data.pagination;
+  const timeRangeData = data?.data.timeRangeExpenses;
 
   const categories = useMemo(() => {
     return [
@@ -177,6 +191,11 @@ const Transactions = () => {
     });
   }, [transactions, searchTerm, selectedCategory, dateRange]);
 
+  const getTimeRangeDate = (days: string) => {
+    if (days === "all") return undefined;
+    return addDays(new Date(), -parseInt(days));
+  };
+
   const getTransactionIcon = (
     type: string,
     isExpense: boolean,
@@ -209,6 +228,21 @@ const Transactions = () => {
     return colors[category] || "bg-gray-500/15 text-gray-700";
   };
 
+  const COLORS = [
+    "#0088FE",
+    "#00C49F",
+    "#FFBB28",
+    "#FF8042",
+    "#8884D8",
+    "#82CA9D",
+    "#A4DE6C",
+    "#D0ED57",
+  ];
+
+  const totalExpenses = useMemo(() => {
+    return timeRangeData?.total ?? 0;
+  }, [timeRangeData?.total]);
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div>
@@ -225,42 +259,138 @@ const Transactions = () => {
       ) : (
         <>
           <div className="grid gap-4 md:grid-cols-3">
-            <Card>
+            <Card className="md:col-span-2 h-[300px]">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Total Income
-                </CardTitle>
-                <CardDescription className="text-2xl font-bold text-green-600">
-                  {formatAmount(data?.data.totals.income ?? 0, "USD")}
+                <div className="flex justify-between items-center">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Expenses Breakdown
+                  </CardTitle>
+                  <Select value={timeRange} onValueChange={setTimeRange}>
+                    <SelectTrigger className="w-[140px] h-8">
+                      <SelectValue placeholder="Select time range" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="30">Last 30 days</SelectItem>
+                      <SelectItem value="60">Last 60 days</SelectItem>
+                      <SelectItem value="90">Last 90 days</SelectItem>
+                      <SelectItem value="all">All time</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <CardDescription className="text-2xl font-bold">
+                  {formatAmount(totalExpenses, "USD")}
+                  <span className="text-sm font-normal text-muted-foreground ml-2">
+                    {timeRange === "all"
+                      ? "all time"
+                      : `last ${timeRange} days`}
+                  </span>
                 </CardDescription>
               </CardHeader>
+              <CardContent className="h-[220px] pt-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={timeRangeData?.breakdown ?? []}
+                      cx="45%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={2}
+                      dataKey="amount"
+                      nameKey="category"
+                    >
+                      {timeRangeData?.breakdown.map((_, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={COLORS[index % COLORS.length]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: number) => formatAmount(value, "USD")}
+                      contentStyle={{
+                        backgroundColor: "rgba(255, 255, 255, 0.95)",
+                        border: "none",
+                        borderRadius: "6px",
+                        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                      }}
+                    />
+                    <Legend
+                      layout="vertical"
+                      align="right"
+                      verticalAlign="middle"
+                      wrapperStyle={{
+                        paddingLeft: "20px",
+                        maxHeight: "180px",
+                        overflowY: "auto",
+                        fontSize: "12px",
+                        width: "45%",
+                      }}
+                      iconSize={8}
+                      iconType="circle"
+                      formatter={(value, entry) => {
+                        const category = timeRangeData?.breakdown.find(
+                          (cat) => cat.category === value
+                        );
+                        if (!category) return value;
+                        return (
+                          <div className="flex items-center gap-2 w-full py-[2px]">
+                            <span className="font-medium truncate flex-1">
+                              {value}
+                            </span>
+                            <span className="text-muted-foreground shrink-0">
+                              {category.percentage}%
+                            </span>
+                          </div>
+                        );
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Total Expenses
-                </CardTitle>
-                <CardDescription className="text-2xl font-bold text-red-600">
-                  {formatAmount(data?.data.totals.expenses ?? 0, "USD")}
-                </CardDescription>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Net Change
-                </CardTitle>
-                <CardDescription
-                  className={`text-2xl font-bold ${
-                    (data?.data.totals.netChange ?? 0) > 0
-                      ? "text-green-600"
-                      : "text-red-600"
-                  }`}
-                >
-                  {formatAmount(data?.data.totals.netChange ?? 0, "USD")}
-                </CardDescription>
-              </CardHeader>
-            </Card>
+            <div className="grid grid-cols-1 gap-4 h-[300px]">
+              <Card className="h-[145px]">
+                <CardHeader className="h-full flex flex-col justify-center p-4">
+                  <div className="space-y-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Total Income
+                    </CardTitle>
+                    <div className="flex items-center">
+                      <ArrowDownIcon className="h-4 w-4 text-green-500 mr-2" />
+                      <CardDescription className="text-2xl font-bold text-green-600">
+                        {formatAmount(data?.data.totals.income ?? 0, "USD")}
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+              </Card>
+              <Card className="h-[145px]">
+                <CardHeader className="h-full flex flex-col justify-center p-4">
+                  <div className="space-y-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Net Change
+                    </CardTitle>
+                    <div className="flex items-center">
+                      {(data?.data.totals.netChange ?? 0) > 0 ? (
+                        <ArrowUpIcon className="h-4 w-4 text-green-500 mr-2" />
+                      ) : (
+                        <ArrowDownIcon className="h-4 w-4 text-red-500 mr-2" />
+                      )}
+                      <CardDescription
+                        className={`text-2xl font-bold ${
+                          (data?.data.totals.netChange ?? 0) > 0
+                            ? "text-green-600"
+                            : "text-red-600"
+                        }`}
+                      >
+                        {formatAmount(data?.data.totals.netChange ?? 0, "USD")}
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+              </Card>
+            </div>
           </div>
 
           <Card>
