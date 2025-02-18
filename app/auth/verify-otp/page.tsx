@@ -27,10 +27,10 @@ const VerifyOTPContent = () => {
   const [isResendDisabled, setIsResendDisabled] = useState(false);
   const [countdown, setCountdown] = useState(60);
 
-  const email = searchParams.get("email");
-
+  const email = searchParams?.get("email");
+  const phoneNumber = searchParams?.get("phoneNumber");
   useEffect(() => {
-    if (!email) {
+    if (!email && !phoneNumber) {
       router.push("/auth/login");
     }
   }, [router, searchParams]);
@@ -74,9 +74,10 @@ const VerifyOTPContent = () => {
 
   const resendMutation = useMutation({
     mutationFn: async () => {
-      const response = await axiosInstance.post("/auth/resend-otp", {
-        email: email,
-      });
+      const body = email
+        ? { email: email.trim() }
+        : { phoneNumber: phoneNumber?.trim() };
+      const response = await axiosInstance.post("/auth/resend-otp", body);
       return response.data;
     },
     onSuccess: () => {
@@ -103,7 +104,7 @@ const VerifyOTPContent = () => {
   };
 
   const handleResendOtp = () => {
-    if (!email) {
+    if (!email && !phoneNumber) {
       return toast.error("Please try verifying an OTP first");
     }
     resendMutation.mutate();

@@ -321,9 +321,7 @@ const Transactions = () => {
                       verticalAlign="middle"
                       wrapperStyle={{
                         paddingLeft: "20px",
-                        maxHeight: "180px",
-                        overflowY: "auto",
-                        fontSize: "12px",
+                        maxHeight: "180px",  
                         width: "45%",
                       }}
                       iconSize={8}
