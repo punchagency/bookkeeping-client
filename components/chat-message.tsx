@@ -45,6 +45,42 @@ export const ChatMessage = ({
   const isAI = message.role === "ai";
   const { text, chartData } = parseMessageContent(message.content);
 
+  // If this is a chart response from AI, render only the chart
+  if (isAI && chartData) {
+    return (
+      <div className={cn("flex gap-2 w-full justify-start", className)}>
+        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
+          <Bot className="w-3 h-3 text-primary" />
+        </div>
+        <div className="rounded-lg px-3 py-2 w-full max-w-2xl bg-gray-100 dark:bg-gray-700">
+          <ChartRenderer
+            type={chartData.type}
+            data={chartData.data}
+            options={{
+              ...chartData.options,
+              height: 400, // Set a good default height for visibility
+              width: undefined, // Let it be responsive
+              margin: { top: 40, right: 30, bottom: 60, left: 60 },
+            }}
+          />
+          {text && (
+            <div className="mt-4 text-sm text-gray-600 dark:text-gray-300">
+              <ReactMarkdown
+                remarkPlugins={[remarkMath, remarkGfm]}
+                rehypePlugins={[rehypeKatex]}
+              >
+                {text}
+              </ReactMarkdown>
+            </div>
+          )}
+          <span className="text-[10px] opacity-50 mt-2 block">
+            {formatTimestamp(message.timestamp)}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
@@ -83,13 +119,6 @@ export const ChatMessage = ({
           >
             {text}
           </ReactMarkdown>
-          {chartData && (
-            <ChartRenderer
-              type={chartData.type}
-              data={chartData.data}
-              options={chartData.options}
-            />
-          )}
         </div>
         <span className="text-[10px] opacity-50 mt-1 block">
           {formatTimestamp(message.timestamp)}
