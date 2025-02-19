@@ -320,9 +320,10 @@ const Transactions = () => {
                       align="right"
                       verticalAlign="middle"
                       wrapperStyle={{
-                        paddingLeft: "20px",
-                        maxHeight: "180px",  
-                        width: "45%",
+                        paddingLeft: "15px",
+                        maxHeight: "180px",
+                        width: "50%",
+                        overflow: "auto",
                       }}
                       iconSize={8}
                       iconType="circle"
@@ -332,11 +333,11 @@ const Transactions = () => {
                         );
                         if (!category) return value;
                         return (
-                          <div className="flex items-center gap-2 w-full py-[2px]">
-                            <span className="font-medium truncate flex-1">
+                          <div className="flex items-center gap-2 w-full">
+                            <span className="text-sm truncate flex-1">
                               {value}
                             </span>
-                            <span className="text-muted-foreground shrink-0">
+                            <span className="text-muted-foreground shrink-0 text-sm">
                               {category.percentage}%
                             </span>
                           </div>

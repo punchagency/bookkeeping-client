@@ -1,8 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-
-import { MessageSquare, Search, Bot, User, Filter, Check } from "lucide-react";
+import { MessageSquare, Search, Filter, Check } from "lucide-react";
 import { axiosInstance } from "@/app/config/axios";
 import { Loader } from "@/components/loader";
 import {
@@ -20,22 +19,7 @@ import {
 } from "@/components/ui/popover";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import ReactMarkdown from "react-markdown";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
-import remarkGfm from "remark-gfm";
-import "katex/dist/katex.min.css";
-
-interface Message {
-  role: "user" | "ai";
-  content: string;
-  timestamp: string;
-}
-
-interface MessageWithConversation extends Message {
-  conversationId: string;
-  conversationTitle: string;
-}
+import { ChatMessage, Message } from "@/components/chat-message";
 
 interface Conversation {
   _id: string;
@@ -56,7 +40,10 @@ interface ApiResponse {
 }
 
 interface GroupedMessages {
-  [key: string]: MessageWithConversation[];
+  [key: string]: (Message & {
+    conversationId: string;
+    conversationTitle: string;
+  })[];
 }
 
 const sortOptions = [
@@ -65,6 +52,10 @@ const sortOptions = [
 ] as const;
 
 type SortOption = (typeof sortOptions)[number]["value"];
+
+const formatTitle = (title: string) => {
+  return title.replace("conv_", "Conversation ").slice(0, 30);
+};
 
 const ConversationsPage = () => {
   const router = useRouter();
@@ -75,7 +66,6 @@ const ConversationsPage = () => {
     queryKey: ["conversations"],
     queryFn: async () => {
       const response = await axiosInstance.get("/conversations");
-      console.log("API Response:", response.data);
       return response.data;
     },
   });
@@ -88,10 +78,6 @@ const ConversationsPage = () => {
       });
     }
   }, [data, isLoading, searchQuery]);
-
-  const formatTitle = (title: string) => {
-    return title.replace("conv_", "Conversation ").slice(0, 30);
-  };
 
   const conversations = Array.isArray(data?.data)
     ? data.data
@@ -107,7 +93,12 @@ const ConversationsPage = () => {
     }))
   );
 
-  const groupMessagesByDate = (messages: MessageWithConversation[]) => {
+  const groupMessagesByDate = (
+    messages: (Message & {
+      conversationId: string;
+      conversationTitle: string;
+    })[]
+  ) => {
     const groups: GroupedMessages = {};
 
     messages.forEach((message) => {
@@ -137,65 +128,6 @@ const ConversationsPage = () => {
     const dateB = new Date(b).getTime();
     return sortOrder === "newest" ? dateB - dateA : dateA - dateB;
   });
-
-  const renderMessage = (message: MessageWithConversation) => {
-    const isAI = message.role === "ai";
-    return (
-      <div
-        key={`${message.conversationId}-${message.timestamp}`}
-        className={cn(
-          "flex w-full py-4 hover:bg-accent/10 group transition-colors",
-          isAI ? "bg-accent/5" : "bg-background"
-        )}
-      >
-        <div className="container max-w-5xl mx-auto px-6">
-          <div className="flex gap-4 items-start">
-            <div
-              className={cn(
-                "w-8 h-8 rounded-full flex items-center justify-center",
-                isAI ? "bg-primary/10" : "bg-primary text-primary-foreground"
-              )}
-            >
-              {isAI ? (
-                <Bot className="h-4 w-4 text-primary" />
-              ) : (
-                <User className="h-4 w-4" />
-              )}
-            </div>
-            <div className="flex-1 space-y-1">
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-medium">
-                  {isAI ? "AI Assistant" : "You"}
-                </p>
-                <span className="text-xs text-muted-foreground">
-                  {new Date(message.timestamp).toLocaleTimeString()}
-                </span>
-                <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
-                  from {formatTitle(message.conversationTitle)}
-                </span>
-              </div>
-              <div
-                className={cn(
-                  "prose prose-sm max-w-none dark:prose-invert",
-                  "[&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
-                  isAI
-                    ? "[&_pre]:bg-muted [&_pre]:p-2 [&_pre]:rounded-md [&_code]:text-sm [&_table]:w-full [&_table]:border-collapse [&_table_th]:border [&_table_th]:border-border [&_table_th]:px-2 [&_table_th]:py-1 [&_table_td]:border [&_table_td]:border-border [&_table_td]:px-2 [&_table_td]:py-1 [&_table]:my-2"
-                    : "[&_a]:text-primary [&_a]:underline [&_table]:w-full [&_table]:border-collapse [&_table_th]:border [&_table_th]:border-border [&_table_th]:px-2 [&_table_th]:py-1 [&_table_td]:border [&_table_td]:border-border [&_table_td]:px-2 [&_table_td]:py-1 [&_table]:my-2"
-                )}
-              >
-                <ReactMarkdown
-                  remarkPlugins={[remarkMath, remarkGfm]}
-                  rehypePlugins={[rehypeKatex]}
-                >
-                  {message.content}
-                </ReactMarkdown>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -317,7 +249,14 @@ const ConversationsPage = () => {
                     </div>
                   </div>
                   <div className="divide-y divide-border/50 rounded-lg border bg-background/50 backdrop-blur-sm">
-                    {messages.map(renderMessage)}
+                    {messages.map((message) => (
+                      <div
+                        key={`${message.conversationId}-${message.timestamp}`}
+                        className="p-4"
+                      >
+                        <ChatMessage message={message} showConversationInfo />
+                      </div>
+                    ))}
                   </div>
                 </div>
               );
