@@ -10,6 +10,7 @@ interface AIChatWindowProps {
   onClose?: () => void;
   streamingMessage?: string;
   isAITyping?: boolean;
+  isAISpeaking?: boolean;
 }
 
 export function AIChatWindow({
@@ -18,6 +19,7 @@ export function AIChatWindow({
   onClose,
   streamingMessage = "",
   isAITyping = false,
+  isAISpeaking = false,
 }: Readonly<AIChatWindowProps>) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -47,6 +49,26 @@ export function AIChatWindow({
     return null;
   }
 
+  // Filter out any user messages that were added while AI was speaking
+  const filteredMessages = messages.filter((msg, index) => {
+    if (msg.role === "user") {
+      // Get the previous message
+      const prevMsg = messages[index - 1];
+      // If this user message was created while AI was speaking in the previous message,
+      // and the time difference is very small (less than 2 seconds), filter it out
+      if (prevMsg && prevMsg.role === "ai") {
+        const timeDiff =
+          new Date(msg.timestamp).getTime() -
+          new Date(prevMsg.timestamp).getTime();
+        if (timeDiff < 2000) {
+          // 2 seconds threshold
+          return false;
+        }
+      }
+    }
+    return true;
+  });
+
   return (
     <div
       className={cn(
@@ -60,7 +82,7 @@ export function AIChatWindow({
       <div className="p-4 border-b flex items-center justify-between bg-gray-50 dark:bg-gray-900 rounded-t-xl">
         <h3 className="font-semibold flex items-center gap-2">
           <Bot className="w-4 h-4" />
-          AI Conversation ({messages.length})
+          AI Conversation ({filteredMessages.length})
         </h3>
         <div className="flex items-center gap-1">
           <Button
@@ -88,10 +110,18 @@ export function AIChatWindow({
         </div>
       </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
-        {messages.map((message, index) => (
-          <ChatMessage key={index} message={message} />
+        {filteredMessages.map((message, index) => (
+          <ChatMessage
+            key={index}
+            message={message}
+            isStreaming={
+              message.role === "ai" &&
+              isAISpeaking &&
+              index === filteredMessages.length - 1
+            }
+          />
         ))}
-        {(streamingMessage || isAITyping) && (
+        {(streamingMessage || isAITyping) && !isAISpeaking && (
           <ChatMessage
             message={{
               role: "ai",
