@@ -40,6 +40,15 @@ export const VoiceRecorder = ({
 
   const recognitionRef = useRef<any>(null);
   const [currentAIMessage, setCurrentAIMessage] = useState("");
+  const [isStarting, setIsStarting] = useState(false);
+  const [isAISpeaking, setIsAISpeaking] = useState(false);
+  const lastAIResponseTimeRef = useRef<number>(0);
+
+  const similarity = (str1: string, str2: string) => {
+    const longer = str1.length > str2.length ? str1 : str2;
+    const shorter = str1.length > str2.length ? str2 : str1;
+    return longer.includes(shorter) ? shorter.length / longer.length : 0;
+  };
 
   const saveConversationToDb = async () => {
     console.log("Saving conversation to DB. Current messages:", messages);
@@ -67,15 +76,18 @@ export const VoiceRecorder = ({
 
   const startSpeechRecognition = useCallback(() => {
     console.log("Starting speech recognition");
-    if (recognitionRef.current) {
+    if (recognitionRef.current && !isStarting) {
       try {
+        setIsStarting(true);
         recognitionRef.current.start();
         console.log("Speech recognition started");
       } catch (error) {
         console.error("Error starting speech recognition:", error);
+      } finally {
+        setIsStarting(false);
       }
     }
-  }, []);
+  }, [isStarting]);
 
   const stopMicrophone = useCallback(() => {
     if (mediaStreamRef.current) {
@@ -83,6 +95,7 @@ export const VoiceRecorder = ({
         track.enabled = false;
       });
     }
+
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
@@ -150,6 +163,9 @@ export const VoiceRecorder = ({
               case "response.audio_transcript.done":
                 if (response.transcript) {
                   setCurrentAIMessage(response.transcript);
+                  setIsAISpeaking(true);
+                  lastAIResponseTimeRef.current = Date.now();
+
                   setMessages((prev) => [
                     ...prev,
                     {
@@ -311,19 +327,18 @@ export const VoiceRecorder = ({
         console.log("Speech recognition service has started");
       };
 
-      recognitionRef.current.onend = () => {
-        console.log("Speech recognition service disconnected");
-        if (!isMuted) {
-          console.log("Restarting speech recognition");
-          setTimeout(() => {
-            try {
-              recognitionRef.current?.start();
-            } catch (error) {
-              console.error("Error restarting speech recognition:", error);
-            }
-          }, 100);
-        }
-      };
+       recognitionRef.current.onend = () => {
+         console.log("Speech recognition service disconnected");
+         console.log("Restarting speech recognition");
+         setTimeout(() => {
+           try {
+             recognitionRef.current?.start();
+           } catch (error) {
+             console.error("Error restarting speech recognition:", error);
+           }
+         }, 100);
+       };
+
 
       recognitionRef.current.onresult = (event: any) => {
         console.log("Speech recognition result received");
@@ -331,26 +346,23 @@ export const VoiceRecorder = ({
           event.results[event.results.length - 1][0].transcript;
 
         if (event.results[event.results.length - 1].isFinal) {
-          // Only filter out if it's a very close match to the AI's speech
           const normalizedTranscript = currentTranscript.toLowerCase().trim();
           const normalizedAIMessage = currentAIMessage.toLowerCase().trim();
+          const timeSinceLastAIResponse =
+            Date.now() - lastAIResponseTimeRef.current;
 
-          // Calculate similarity ratio (how much of one string matches the other)
-          const similarity = (str1: string, str2: string) => {
-            const longer = str1.length > str2.length ? str1 : str2;
-            const shorter = str1.length > str2.length ? str2 : str1;
-            return longer.includes(shorter)
-              ? shorter.length / longer.length
-              : 0;
-          };
+          // Enhanced filtering conditions
+          const isLikelyAIEcho =
+            // If AI is currently speaking or has spoken in the last 2 seconds
+            (isAISpeaking || timeSinceLastAIResponse < 2000) &&
+            // Check if the transcript is very similar to the AI's last message
+            (similarity(normalizedTranscript, normalizedAIMessage) > 0.6 ||
+              // Or if the AI's message contains this transcript
+              normalizedAIMessage.includes(normalizedTranscript) ||
+              // Or if this transcript contains the AI's message
+              normalizedTranscript.includes(normalizedAIMessage));
 
-          const similarityRatio = similarity(
-            normalizedTranscript,
-            normalizedAIMessage
-          );
-
-          // Only filter out if it's a very close match (90% or more similar)
-          if (similarityRatio > 0.9) {
+          if (isLikelyAIEcho) {
             console.log("Filtered out AI speech echo:", currentTranscript);
             return;
           }
@@ -384,7 +396,6 @@ export const VoiceRecorder = ({
         toast.error(`Speech recognition error: ${event.error}`);
 
         setSpeechStatus("idle");
-        setIsMuted(true);
       };
     } else {
       toast.error("Speech recognition not supported in this browser");
