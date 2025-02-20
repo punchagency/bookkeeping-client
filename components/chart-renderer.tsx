@@ -18,7 +18,7 @@ import {
   YAxis,
 } from "recharts";
 import { useTheme } from "next-themes";
-import { ChartContainer, ChartTooltip } from "./ui/chart";
+import { ChartContainer } from "./ui/chart";
 
 export interface ChartData {
   label: string;
