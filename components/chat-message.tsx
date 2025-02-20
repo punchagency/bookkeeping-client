@@ -20,6 +20,7 @@ interface ChatMessageProps {
   message: Message;
   showConversationInfo?: boolean;
   className?: string;
+  isStreaming?: boolean;
 }
 
 const formatTitle = (title: string) => {
@@ -41,6 +42,7 @@ export const ChatMessage = ({
   message,
   showConversationInfo = false,
   className,
+  isStreaming = false,
 }: ChatMessageProps) => {
   const isAI = message.role === "ai";
   const { text, chartData } = parseMessageContent(message.content);
@@ -97,6 +99,7 @@ export const ChatMessage = ({
     <div
       className={cn(
         "group hover:bg-gray-50 dark:hover:bg-gray-900 px-2 py-1",
+        isStreaming && "animate-pulse",
         className
       )}
     >
@@ -126,6 +129,11 @@ export const ChatMessage = ({
             <span className="text-[11px] text-muted-foreground">
               {formatTimestamp(message.timestamp)}
             </span>
+            {isStreaming && (
+              <span className="text-[11px] text-primary animate-pulse">
+                typing...
+              </span>
+            )}
           </div>
           <div
             className={cn(

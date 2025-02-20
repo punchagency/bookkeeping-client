@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Bot, Minus, Maximize2, X } from "lucide-react";
-import { useRef, useEffect, useState, MouseEvent } from "react";
+import { useRef, useEffect, useState } from "react";
 import { ChatMessage, Message } from "./chat-message";
 import { Button } from "./ui/button";
 
@@ -8,12 +8,16 @@ interface AIChatWindowProps {
   messages: Message[];
   className?: string;
   onClose?: () => void;
+  streamingMessage?: string;
+  isAITyping?: boolean;
 }
 
 export function AIChatWindow({
   messages,
   className,
   onClose,
+  streamingMessage = "",
+  isAITyping = false,
 }: Readonly<AIChatWindowProps>) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -23,18 +27,23 @@ export function AIChatWindow({
   console.log("AIChatWindow rendered:", { messages, position });
 
   useEffect(() => {
-    // Set initial position
-    if (messages.length > 0) {
-      console.log("Messages received:", messages);
+    // Set initial position when first message arrives
+    if (messages.length > 0 || streamingMessage) {
       const x = window.innerWidth - (isMinimized ? 350 : 800) - 24;
       const y = 80;
       setPosition({ x, y });
     }
-  }, [messages.length, isMinimized]);
+  }, [messages.length, isMinimized, streamingMessage]);
 
-  // If no messages, still render but with debug info
-  if (!messages.length) {
-    console.log("No messages received");
+  // Scroll to bottom when new messages arrive or streaming message updates
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, streamingMessage]);
+
+  // Show the window if there are messages or if AI is typing
+  if (!messages.length && !streamingMessage && !isAITyping) {
     return null;
   }
 
@@ -82,6 +91,16 @@ export function AIChatWindow({
         {messages.map((message, index) => (
           <ChatMessage key={index} message={message} />
         ))}
+        {(streamingMessage || isAITyping) && (
+          <ChatMessage
+            message={{
+              role: "ai",
+              content: streamingMessage || "...",
+              timestamp: new Date().toISOString(),
+            }}
+            isStreaming={true}
+          />
+        )}
         <div ref={messagesEndRef} />
       </div>
     </div>
