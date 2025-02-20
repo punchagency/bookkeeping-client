@@ -40,7 +40,7 @@ const Signup = () => {
     email: "",
     phoneNumber: "",
     password: "",
-    otpDeliveryMethod: "PHONE_NUMBER",
+    otpDeliveryMethod: "EMAIL",
   });
 
   const signupMutation = useMutation({
@@ -175,7 +175,7 @@ const Signup = () => {
                 disabled={signupMutation.isPending}
               />
             </div>
-
+{/* 
             <div className="space-y-2">
               <label className="text-sm font-medium">Verification Method</label>
               <Select
@@ -206,7 +206,7 @@ const Signup = () => {
                   ? "We'll send a verification code to your email address"
                   : "We'll send a verification code to your phone number"}
               </p>
-            </div>
+            </div> */}
 
             <Button
               type="submit"
