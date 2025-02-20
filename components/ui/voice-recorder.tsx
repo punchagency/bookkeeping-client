@@ -39,6 +39,7 @@ export const VoiceRecorder = ({
   >([]);
 
   const recognitionRef = useRef<any>(null);
+  const [currentAIMessage, setCurrentAIMessage] = useState("");
 
   const saveConversationToDb = async () => {
     console.log("Saving conversation to DB. Current messages:", messages);
@@ -148,6 +149,7 @@ export const VoiceRecorder = ({
             switch (response.type) {
               case "response.audio_transcript.done":
                 if (response.transcript) {
+                  setCurrentAIMessage(response.transcript);
                   setMessages((prev) => [
                     ...prev,
                     {
@@ -311,14 +313,16 @@ export const VoiceRecorder = ({
 
       recognitionRef.current.onend = () => {
         console.log("Speech recognition service disconnected");
-        console.log("Restarting speech recognition");
-        setTimeout(() => {
-          try {
-            recognitionRef.current?.start();
-          } catch (error) {
-            console.error("Error restarting speech recognition:", error);
-          }
-        }, 100);
+        if (!isMuted) {
+          console.log("Restarting speech recognition");
+          setTimeout(() => {
+            try {
+              recognitionRef.current?.start();
+            } catch (error) {
+              console.error("Error restarting speech recognition:", error);
+            }
+          }, 100);
+        }
       };
 
       recognitionRef.current.onresult = (event: any) => {
@@ -327,12 +331,32 @@ export const VoiceRecorder = ({
           event.results[event.results.length - 1][0].transcript;
 
         if (event.results[event.results.length - 1].isFinal) {
+          // Only filter out if it's a very close match to the AI's speech
+          const normalizedTranscript = currentTranscript.toLowerCase().trim();
+          const normalizedAIMessage = currentAIMessage.toLowerCase().trim();
+
+          // Calculate similarity ratio (how much of one string matches the other)
+          const similarity = (str1: string, str2: string) => {
+            const longer = str1.length > str2.length ? str1 : str2;
+            const shorter = str1.length > str2.length ? str2 : str1;
+            return longer.includes(shorter)
+              ? shorter.length / longer.length
+              : 0;
+          };
+
+          const similarityRatio = similarity(
+            normalizedTranscript,
+            normalizedAIMessage
+          );
+
+          // Only filter out if it's a very close match (90% or more similar)
+          if (similarityRatio > 0.9) {
+            console.log("Filtered out AI speech echo:", currentTranscript);
+            return;
+          }
+
           console.log("Final transcript:", currentTranscript);
           if (currentTranscript.trim()) {
-            console.log(
-              "Adding/Updating message with content:",
-              currentTranscript.trim()
-            );
             setMessages((prev) => {
               const newMessage = {
                 role: "user" as const,
@@ -341,28 +365,26 @@ export const VoiceRecorder = ({
               };
 
               if (!prev.length || prev[prev.length - 1].role === "ai") {
-                const newMessages = [...prev, newMessage];
-                console.log("Updated messages array:", newMessages);
-                return newMessages;
+                return [...prev, newMessage];
               }
 
-              const newMessages = [...prev.slice(0, -1), newMessage];
-              console.log("Updated messages array:", newMessages);
-              return newMessages;
+              return [...prev.slice(0, -1), newMessage];
+            });
+
+            onVoiceStateChange({
+              transcript: currentTranscript,
+              isProcessing: true,
             });
           }
-
-          onVoiceStateChange({
-            transcript: currentTranscript,
-            isProcessing: true,
-          });
         }
       };
 
       recognitionRef.current.onerror = (event: any) => {
         console.error("Speech recognition error:", event.error);
         toast.error(`Speech recognition error: ${event.error}`);
+
         setSpeechStatus("idle");
+        setIsMuted(true);
       };
     } else {
       toast.error("Speech recognition not supported in this browser");
@@ -377,7 +399,7 @@ export const VoiceRecorder = ({
         }
       }
     };
-  }, [onVoiceStateChange]);
+  }, [isMuted, onVoiceStateChange]);
 
   useEffect(() => {
     return () => {
