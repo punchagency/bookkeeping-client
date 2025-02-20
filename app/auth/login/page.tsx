@@ -68,7 +68,16 @@ const Login = () => {
       useUserStore.getState().setUser(response.data.user);
 
       toast.success("Login successful!");
-      router.push("/dashboard");
+
+      // Check for redirect path
+      const redirectPath = localStorage.getItem("redirectAfterLogin");
+      localStorage.removeItem("redirectAfterLogin"); // Clean up
+
+      if (redirectPath) {
+        router.push(redirectPath);
+      } else {
+        router.push("/dashboard");
+      }
     },
     onError: (error: any) => {
       const errorMessage =

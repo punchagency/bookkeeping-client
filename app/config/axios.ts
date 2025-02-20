@@ -32,6 +32,14 @@ axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
+      // Store the current path before redirecting
+      if (typeof window !== "undefined") {
+        const currentPath = window.location.pathname + window.location.search;
+        if (currentPath !== "/auth/login" && currentPath !== "/auth/logout") {
+          localStorage.setItem("redirectAfterLogin", currentPath);
+        }
+      }
+
       const response = await axios.post("/api/auth/reset-token");
 
       if (response.status == 200) {
